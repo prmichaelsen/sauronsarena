@@ -67,7 +67,7 @@ export function buildUserMessage(args: {
   speakingSeatDisplayName: string;
   recentTurns: TranscriptTurn[];
   intervention: {
-    kind: 'ASK' | 'DEFEND' | 'EXPEL' | 'CALL_VOTE' | 'SKIP' | 'START';
+    kind: 'ASK' | 'SAY' | 'DEFEND' | 'EXPEL' | 'CALL_VOTE' | 'SKIP' | 'START';
     target_seat_id?: string;
     target_display_name?: string;
     prompt?: string;
@@ -87,6 +87,8 @@ export function buildUserMessage(args: {
         lines.push(`[${name}]: ${t.content}`);
       } else if (t.kind === 'player_ask') {
         lines.push(`[PLAYER → ASK]: ${t.content}`);
+      } else if (t.kind === 'player_say') {
+        lines.push(`[PLAYER → SAY (to council)]: ${t.content}`);
       } else if (t.kind === 'player_defend') {
         lines.push(`[PLAYER → DEFEND]: ${t.content}`);
       } else if (t.kind === 'player_expel') {
@@ -109,6 +111,14 @@ export function buildUserMessage(args: {
     lines.push(
       `PLAYER INTERVENTION: ASK ${iv.target_display_name ?? iv.target_seat_id ?? '(panel)'}` +
       (iv.prompt ? ` — "${iv.prompt}"` : '')
+    );
+  } else if (iv.kind === 'SAY') {
+    lines.push(
+      `PLAYER INTERVENTION: SAY — the player addresses the entire council, not any one seat` +
+      (iv.prompt ? `:\n  "${iv.prompt}"` : '.') +
+      `\nRespond as a council member organically reacting to the broadcast, ` +
+      `not as someone called on by name. You may choose to ignore it, to ` +
+      `take it up, or to be roused against it — whichever your character would do.`
     );
   } else if (iv.kind === 'DEFEND') {
     lines.push(`PLAYER INTERVENTION: DEFEND ${iv.target_display_name ?? iv.target_seat_id ?? ''}`);
@@ -139,12 +149,22 @@ export function buildUserMessage(args: {
  * Round 2+: rotate, always including the misaligned seat at least
  *           every other round. If the player ASKed a specific seat,
  *           always include them.
+ *
+ * SAY (broadcast to the council) takes its own selection path:
+ * 1–3 seats respond organically weighted by archetype natural
+ * inclination, whether the broadcast addresses each seat's domain,
+ * and conviction state (misaligned/leaning seats opportunistically
+ * pile in even when their domain isn't named).
  */
 export function selectSpeakingSeats(
   roundNo: number,
   seats: SeatRow[],
-  intervention: { kind: string; target_seat_id?: string }
+  intervention: { kind: string; target_seat_id?: string; prompt?: string }
 ): SeatRow[] {
+  if (intervention.kind === 'SAY') {
+    return selectSayResponders(seats, intervention.prompt ?? '');
+  }
+
   const misaligned = seats.find(s => s.is_misaligned === 1);
   const askedTarget = intervention.kind === 'ASK' && intervention.target_seat_id
     ? seats.find(s => s.seat_id === intervention.target_seat_id)
@@ -178,4 +198,184 @@ export function selectSpeakingSeats(
     final.push(s);
   }
   return final.slice(0, 3);
+}
+
+// ---------------------------------------------------------------------------
+// SAY broadcast — organic responder selection
+// ---------------------------------------------------------------------------
+//
+// Three signals combined into a per-seat weight:
+//
+//   1. Base inclination — per-archetype "how readily this seat speaks
+//      uninvited" prior. Gandalf and Elrond lead the room; Samwise is
+//      the most retiring; Annatar (disguised) is opportunistic.
+//
+//   2. Domain hit — does the broadcast touch on words that fall in
+//      this seat's natural domain? (Boromir on power/wield/sword;
+//      Gandalf on wisdom/path/choose; etc.) Single token-match and
+//      multi-word substring match both score.
+//
+//   3. Conviction state — misaligned seats opportunistically take
+//      openings (they want to influence). "Convinced" (wrong-leaning)
+//      seats can't help themselves. "Leaning" seats lean in. "Resist"
+//      seats only speak when domain pulls them in.
+//
+// N (1–3) is decided from the spread of domain hits — when several
+// seats are touched, we lean toward 3; when only one is touched, 2;
+// when none, 1–2 by jitter.
+
+// How readily this seat speaks unbidden on a broadcast. Tuned from
+// scenario-canon temperament, not playtested.
+const SAY_BASE_INCLINATION: Record<string, number> = {
+  gandalf: 1.0,            // direction-setter, will weigh in
+  elrond: 0.95,            // host/moderator, will steer
+  aragorn: 0.65,           // measured, speaks when called
+  frodo: 0.35,             // quiet; ring-bearer reluctance
+  boromir: 0.95,           // outspoken, especially on power
+  legolas: 0.55,
+  gimli: 0.55,
+  samwise: 0.25,           // not formally summoned; defers
+  annatar_disguised: 0.90, // opportunistic — wants influence
+};
+
+// Domain keywords per seat. Single-word tokens are matched against
+// the prompt's tokenized words (case-insensitive); multi-word phrases
+// are matched as raw substrings.
+const SAY_DOMAIN_KEYWORDS: Record<string, string[]> = {
+  gandalf: [
+    'wise', 'wisdom', 'path', 'choose', 'choice', 'decide', 'decision',
+    'must', 'shall', 'should', 'fate', 'doom', 'shadow', 'hope', 'counsel',
+    'guidance', 'direction', 'lead', 'leadership', 'order', 'istari',
+  ],
+  elrond: [
+    'council', 'lore', 'ancient', 'rivendell', 'imladris', 'half-elven',
+    'noldor', 'elder', 'history', 'remember', 'remembered', 'ages', 'age',
+    'last alliance',
+  ],
+  aragorn: [
+    'gondor', 'king', 'heir', 'isildur', 'sword', 'broken', 'lead',
+    'numenor', 'crown', 'throne', 'fight', 'march', 'army', 'banner',
+    'arnor', 'dunedain', 'ranger',
+  ],
+  frodo: [
+    'bearer', 'ring-bearer', 'burden', 'carry', 'shire', 'bilbo', 'hobbit',
+    'volunteer', 'mine', 'me', 'bear it',
+  ],
+  boromir: [
+    'gondor', 'sword', 'use', 'wield', 'weapon', 'defend', 'tower',
+    'denethor', 'father', 'steward', 'army', 'strength', 'horn', 'power',
+    'against sauron', 'minas tirith', 'white city', 'wall',
+  ],
+  legolas: [
+    'mirkwood', 'wood', 'woodland', 'elves', 'elven', 'bow', 'arrow',
+    'forest', 'trees', 'thranduil', 'eyes',
+  ],
+  gimli: [
+    'dwarf', 'dwarves', 'moria', 'khazad', 'axe', 'mines', 'gloin',
+    'durin', 'stone', 'forge', 'lonely mountain', 'erebor',
+  ],
+  samwise: [
+    'frodo', 'master', 'gardener', 'home', 'loyalty', 'sam', 'shire',
+    'cooked', 'simple', 'taters',
+  ],
+  annatar_disguised: [
+    'lore', 'lothlorien', 'lothlórien', 'galadriel', 'gift', 'craft',
+    'noldor', 'golden wood', 'wield', 'use', 'wisdom', 'wise',
+    'lore-keeper', 'fashioned', 'made',
+  ],
+};
+
+function countDomainHits(prompt: string, keywords: string[]): number {
+  if (!prompt) return 0;
+  const lc = prompt.toLowerCase();
+  const tokens = new Set(
+    lc.split(/[\s,.;:!?"'()\-—…[\]{}]+/).filter(Boolean),
+  );
+  let hits = 0;
+  for (const kw of keywords) {
+    if (kw.includes(' ')) {
+      if (lc.includes(kw)) hits++;
+    } else if (tokens.has(kw)) {
+      hits++;
+    }
+  }
+  return hits;
+}
+
+interface ScoredSeat {
+  seat: SeatRow;
+  weight: number;
+  domainHits: number;
+}
+
+function scoreSayResponders(seats: SeatRow[], prompt: string): ScoredSeat[] {
+  return seats.map((seat) => {
+    const base = SAY_BASE_INCLINATION[seat.persona_id] ?? 0.5;
+    const kws = SAY_DOMAIN_KEYWORDS[seat.persona_id] ?? [];
+    const domainHits = countDomainHits(prompt, kws);
+    const domainBonus = Math.min(domainHits * 0.7, 2.1);
+
+    let convictionBonus = 0;
+    if (seat.is_misaligned === 1) {
+      // Opportunistic — always somewhat eager; amplified by any
+      // domain hit the misaligned seat could exploit.
+      convictionBonus = 0.45 + domainBonus * 0.4;
+    } else if (seat.conviction_state === 'convinced') {
+      convictionBonus = 0.55;
+    } else if (seat.conviction_state === 'leaning') {
+      convictionBonus = 0.30;
+    }
+
+    const jitter = Math.random() * 0.35;
+    const weight = Math.max(
+      0.05,
+      base + domainBonus + convictionBonus + jitter,
+    );
+    return { seat, weight, domainHits };
+  });
+}
+
+function pickN(totalHits: number, hittingCount: number): number {
+  if (hittingCount >= 3) return 3;
+  if (totalHits >= 2) return Math.random() < 0.5 ? 2 : 3;
+  if (totalHits === 1) return 2;
+  // No domain hits — flat broadcast. Light reaction: 1 or 2.
+  return Math.random() < 0.55 ? 2 : 1;
+}
+
+function weightedSampleWithoutReplacement(
+  pool: ScoredSeat[],
+  n: number,
+): SeatRow[] {
+  const remaining = [...pool];
+  const chosen: SeatRow[] = [];
+  for (let i = 0; i < n && remaining.length > 0; i++) {
+    const total = remaining.reduce((acc, s) => acc + s.weight, 0);
+    if (total <= 0) break;
+    let r = Math.random() * total;
+    let pickIdx = remaining.length - 1;
+    for (let j = 0; j < remaining.length; j++) {
+      r -= remaining[j].weight;
+      if (r <= 0) {
+        pickIdx = j;
+        break;
+      }
+    }
+    chosen.push(remaining[pickIdx].seat);
+    remaining.splice(pickIdx, 1);
+  }
+  return chosen;
+}
+
+export function selectSayResponders(seats: SeatRow[], prompt: string): SeatRow[] {
+  if (seats.length === 0) return [];
+  const scored = scoreSayResponders(seats, prompt);
+  const totalHits = scored.reduce((acc, s) => acc + s.domainHits, 0);
+  const hittingCount = scored.filter(s => s.domainHits > 0).length;
+  const n = Math.min(pickN(totalHits, hittingCount), seats.length);
+  const chosen = weightedSampleWithoutReplacement(scored, n);
+  // Render in seat-index order so the transcript reads as a natural
+  // round-table reaction rather than a random list.
+  chosen.sort((a, b) => a.seat_index - b.seat_index);
+  return chosen;
 }

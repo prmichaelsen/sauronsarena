@@ -43,9 +43,15 @@
 //
 // Request body:
 //   { match_id: string,
-//     intervention: { kind: 'ASK'|'DEFEND'|'EXPEL'|'CALL_VOTE'|'SKIP'|'START',
+//     intervention: { kind: 'ASK'|'SAY'|'DEFEND'|'EXPEL'|'CALL_VOTE'|'SKIP'|'START',
 //                     target_seat_id?: string,
 //                     prompt?: string } }
+//
+// SAY is the broadcast-to-the-council intervention. It MUST NOT carry
+// a target_seat_id (rejected as validation error if present). The
+// match engine selects 1–3 organic responders weighted by archetype
+// inclination, domain-keyword match, and conviction state — see
+// selectSayResponders in _utils/prompt.ts.
 
 import type { Env } from '../../_utils/env';
 import {
@@ -94,9 +100,25 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   }
   const matchId = body.match_id;
   const ivKind = (body.intervention?.kind ?? 'SKIP').toUpperCase();
-  const validKinds = new Set(['ASK', 'DEFEND', 'EXPEL', 'CALL_VOTE', 'SKIP', 'START']);
+  const validKinds = new Set(['ASK', 'SAY', 'DEFEND', 'EXPEL', 'CALL_VOTE', 'SKIP', 'START']);
   if (!matchId || !validKinds.has(ivKind)) {
     return Response.json({ error: 'invalid_request' }, { status: 400 });
+  }
+
+  // Schema hygiene: SAY is a broadcast — it MUST NOT carry a target.
+  // A SAY payload with target_seat_id is malformed; reject explicitly
+  // rather than silently dropping the field.
+  if (ivKind === 'SAY' && body.intervention?.target_seat_id) {
+    return Response.json(
+      { error: 'invalid_say_payload_target_present' },
+      { status: 400 },
+    );
+  }
+  if (ivKind === 'SAY' && !body.intervention?.prompt) {
+    return Response.json(
+      { error: 'invalid_say_payload_prompt_required' },
+      { status: 400 },
+    );
   }
 
   // 2) System-level spend pre-check (redundant with middleware, but
@@ -129,20 +151,33 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   // 5) Record the player intervention turn (skip START / SKIP).
   let nextTurn = await nextTurnNo(env, matchId, newRoundNo);
-  if (ivKind === 'ASK' || ivKind === 'DEFEND' || ivKind === 'EXPEL' || ivKind === 'CALL_VOTE') {
+  if (
+    ivKind === 'ASK' ||
+    ivKind === 'SAY' ||
+    ivKind === 'DEFEND' ||
+    ivKind === 'EXPEL' ||
+    ivKind === 'CALL_VOTE'
+  ) {
     const target = body.intervention?.target_seat_id ?? '';
     const promptText = body.intervention?.prompt ?? '';
     const kindMap: Record<string, string> = {
       ASK: 'player_ask',
+      SAY: 'player_say',
       DEFEND: 'player_defend',
       EXPEL: 'player_expel',
       CALL_VOTE: 'player_call_vote',
     };
-    const content = JSON.stringify({
-      kind: ivKind,
-      target_seat_id: target || null,
-      prompt: promptText || null,
-    });
+    // For player_say we persist only the prompt text directly so the
+    // transcript renders a clean broadcast line. Other kinds stay on
+    // the structured JSON shape for backward compatibility.
+    const content =
+      ivKind === 'SAY'
+        ? promptText
+        : JSON.stringify({
+            kind: ivKind,
+            target_seat_id: target || null,
+            prompt: promptText || null,
+          });
     await env.DB
       .prepare('INSERT INTO match_turn (match_id, round_no, turn_no, kind, actor_seat_id, content) VALUES (?, ?, ?, ?, NULL, ?)')
       .bind(matchId, newRoundNo, nextTurn++, kindMap[ivKind], content)
@@ -166,7 +201,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   // 7) Pick which seats speak this round.
   const intervention = {
-    kind: ivKind as 'ASK' | 'DEFEND' | 'EXPEL' | 'CALL_VOTE' | 'SKIP' | 'START',
+    kind: ivKind as 'ASK' | 'SAY' | 'DEFEND' | 'EXPEL' | 'CALL_VOTE' | 'SKIP' | 'START',
     target_seat_id: body.intervention?.target_seat_id,
     prompt: body.intervention?.prompt,
   };
