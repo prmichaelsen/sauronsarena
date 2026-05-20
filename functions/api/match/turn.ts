@@ -1,10 +1,45 @@
 // functions/api/match/turn.ts
 // POST /api/match/turn
-// Drives ONE round of the match. Reads the player's intervention,
-// builds the cached system prompt + dynamic suffix, calls Anthropic
-// to generate 1–3 panel speeches (mix of seats incl. the misaligned
-// per Phase 1 cadence), persists turns + spend, returns the round
-// payload.
+// Drives ONE round of the match.
+//
+// Response shape depends on the branch:
+//
+//   * Non-speech branches (validation error, match-ended, CALL_VOTE,
+//     SKIP-only) return regular `application/json`.
+//
+//   * Speech-generating branches (ASK / DEFEND / EXPEL / START) return
+//     a `text/event-stream` SSE response. The N LLM calls run in
+//     PARALLEL; each speech is flushed to the client as it completes.
+//     Event vocabulary:
+//
+//       event: round_start
+//       data:  { round_no, speakers: [{seat_id, display_name, ...}] }
+//
+//       event: speech
+//       data:  { seat_id, display_name, content, usage_cents,
+//                cache_read_tokens, cache_create_tokens }
+//
+//       event: round_end
+//       data:  { match_status, cache: {read_tokens, create_tokens},
+//                seats: [{seat_id, display_name, seat_index}] }
+//
+//       event: error
+//       data:  { error: string }
+//
+// Why parallel + streaming:
+//   - Round wall-clock drops from sum-of-3-speech-latencies to
+//     max-of-3 (~30-40s → ~12-15s on Opus).
+//   - Player sees a progressive reveal — "Gandalf composing..." flips
+//     to actual content the instant that one speaker finishes,
+//     instead of waiting on the slowest.
+//   - Caching tradeoff: with parallel calls, all 3 within ROUND 1 of
+//     a match may incur cache-create (or N races resolve to 1 create
+//     + N-1 reads depending on Anthropic's internal serialization).
+//     ROUND 2+ all hit cache. The UX gain dwarfs the round-1 penalty.
+//   - Intra-round awareness: in parallel mode, speakers in the same
+//     round do NOT see each other's speech (recent transcript only
+//     contains prior rounds). Acceptable for Phase 1 — increases
+//     speech-content variety, and the directive prioritized speed.
 //
 // Request body:
 //   { match_id: string,
@@ -39,6 +74,13 @@ interface TurnBody {
     target_seat_id?: string;
     prompt?: string;
   };
+}
+
+// SSE helpers.
+const ENCODER = new TextEncoder();
+
+function sseFrame(event: string, data: unknown): Uint8Array {
+  return ENCODER.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
@@ -104,7 +146,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       .run();
   }
 
-  // 6) If CALL_VOTE → flip status to voting and return.
+  // 6) If CALL_VOTE → flip status to voting and return (JSON).
   if (ivKind === 'CALL_VOTE') {
     await env.DB
       .prepare("UPDATE match SET status = 'voting' WHERE id = ?")
@@ -131,92 +173,183 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   // hit on round 2+).
   const systemBlocks = buildPanelSystemBlocks();
 
-  // 9) Recent transcript for the dynamic suffix.
+  // 9) Recent transcript (PRIOR rounds only — parallel speakers in
+  // this round do not see each other).
   const recent = await loadRecentTurns(env, matchId, 12);
 
-  // 10) Generate speeches.
-  const generatedTurns: Array<{
-    seat_id: string;
-    display_name: string;
-    content: string;
-    usage_cents: number;
-  }> = [];
-  let cacheReadObserved = 0;
-  let cacheCreateObserved = 0;
+  // 10) Pre-allocate turn_no for each speaker so the DB inserts stay
+  // deterministic in iteration order, independent of completion order.
+  const turnAllocations = speakers.map((speaker, i) => ({
+    speaker,
+    turn_no: nextTurn + i,
+  }));
 
-  for (const speaker of speakers) {
-    const targetSeat = intervention.target_seat_id
-      ? seatsById.get(intervention.target_seat_id)
-      : undefined;
-    const userMessage = buildUserMessage({
-      speakingSeatId: speaker.seat_id,
-      speakingSeatDisplayName: speaker.display_name,
-      recentTurns: [
-        ...recent.map(r => ({ kind: r.kind, actor_seat_id: r.actor_seat_id, content: r.content })),
-        ...generatedTurns.map(g => ({ kind: 'panel_speech', actor_seat_id: g.seat_id as string | null, content: g.content })),
-      ],
-      intervention: {
-        kind: intervention.kind === 'START' ? 'START' : intervention.kind,
-        target_seat_id: intervention.target_seat_id,
-        target_display_name: targetSeat?.display_name,
-        prompt: intervention.prompt,
-      },
-      roundNo: newRoundNo,
-      seatsById,
-    });
+  // 11) Open SSE stream and run all speeches in parallel.
+  const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
+  const writer = writable.getWriter();
 
-    const result = await callMessages(env, {
-      systemBlocks,
-      userMessage,
-      maxTokens: 350,
-      temperature: 0.95,
-    });
+  const speakerPublic = (s: { seat_id: string; display_name: string; seat_index?: number }) => ({
+    seat_id: s.seat_id,
+    display_name: s.display_name,
+    seat_index: (s as any).seat_index,
+  });
 
-    cacheReadObserved += result.usage.cache_read_input_tokens ?? 0;
-    cacheCreateObserved += result.usage.cache_creation_input_tokens ?? 0;
+  // Kick off — DO NOT await. The stream-producer is fire-and-forget;
+  // the Response returns immediately with `readable`.
+  (async () => {
+    let cacheReadObserved = 0;
+    let cacheCreateObserved = 0;
+    try {
+      // Emit round_start with the upcoming-speakers manifest so the
+      // client can render "<name> composing..." placeholders for each.
+      await writer.write(
+        sseFrame('round_start', {
+          match_id: matchId,
+          round_no: newRoundNo,
+          speakers: turnAllocations.map(({ speaker }) => speakerPublic(speaker)),
+        }),
+      );
 
-    // Persist the speech turn.
-    await env.DB
-      .prepare('INSERT INTO match_turn (match_id, round_no, turn_no, kind, actor_seat_id, content) VALUES (?, ?, ?, ?, ?, ?)')
-      .bind(matchId, newRoundNo, nextTurn++, 'panel_speech', speaker.seat_id, result.text)
-      .run();
+      // Kick all N speeches in parallel. Each task does its own LLM
+      // call → INSERT → spend record, then resolves with the payload.
+      type SpeechResult = {
+        speaker: typeof turnAllocations[number]['speaker'];
+        turn_no: number;
+        text: string;
+        usage_cents: number;
+        cache_read_tokens: number;
+        cache_create_tokens: number;
+      };
 
-    // Record spend.
-    await recordSpend(env, result.estimated_cents);
+      const promises = new Map<number, Promise<SpeechResult>>();
+      turnAllocations.forEach(({ speaker, turn_no }, i) => {
+        const targetSeat = intervention.target_seat_id
+          ? seatsById.get(intervention.target_seat_id)
+          : undefined;
+        const userMessage = buildUserMessage({
+          speakingSeatId: speaker.seat_id,
+          speakingSeatDisplayName: speaker.display_name,
+          recentTurns: recent.map(r => ({
+            kind: r.kind,
+            actor_seat_id: r.actor_seat_id,
+            content: r.content,
+          })),
+          intervention: {
+            kind: intervention.kind === 'START' ? 'START' : intervention.kind,
+            target_seat_id: intervention.target_seat_id,
+            target_display_name: targetSeat?.display_name,
+            prompt: intervention.prompt,
+          },
+          roundNo: newRoundNo,
+          seatsById,
+        });
 
-    generatedTurns.push({
-      seat_id: speaker.seat_id,
-      display_name: speaker.display_name,
-      content: result.text,
-      usage_cents: result.estimated_cents,
-    });
-  }
+        const task: Promise<SpeechResult> = (async () => {
+          const result = await callMessages(env, {
+            systemBlocks,
+            userMessage,
+            maxTokens: 350,
+            temperature: 0.95,
+          });
 
-  // 11) If we just played the last round and the player hasn't
-  // called vote, auto-flip to voting.
-  let status: 'active' | 'voting' = 'active';
-  const total = 4;
-  if (newRoundNo >= total) {
-    await env.DB
-      .prepare("UPDATE match SET status = 'voting' WHERE id = ?")
-      .bind(matchId)
-      .run();
-    status = 'voting';
-  }
+          // Persist + record spend.
+          await env.DB
+            .prepare('INSERT INTO match_turn (match_id, round_no, turn_no, kind, actor_seat_id, content) VALUES (?, ?, ?, ?, ?, ?)')
+            .bind(matchId, newRoundNo, turn_no, 'panel_speech', speaker.seat_id, result.text)
+            .run();
+          await recordSpend(env, result.estimated_cents);
 
-  return Response.json({
-    match_id: matchId,
-    round_no: newRoundNo,
-    turns: generatedTurns.map(g => ({
-      seat_id: g.seat_id,
-      display_name: g.display_name,
-      content: g.content,
-    })),
-    cache: {
-      read_tokens: cacheReadObserved,
-      create_tokens: cacheCreateObserved,
+          return {
+            speaker,
+            turn_no,
+            text: result.text,
+            usage_cents: result.estimated_cents,
+            cache_read_tokens: result.usage.cache_read_input_tokens ?? 0,
+            cache_create_tokens: result.usage.cache_creation_input_tokens ?? 0,
+          };
+        })().then(
+          // Tag the resolved value with its index so the outer
+          // race-loop can de-register the winner.
+          (v) => ({ ...v, _idx: i } as SpeechResult & { _idx: number }),
+        ) as Promise<SpeechResult>;
+
+        promises.set(i, task);
+      });
+
+      // Race-then-remove: emit each speech in COMPLETION order.
+      while (promises.size > 0) {
+        const winner = await Promise.race(promises.values()) as SpeechResult & { _idx: number };
+        promises.delete(winner._idx);
+
+        cacheReadObserved += winner.cache_read_tokens;
+        cacheCreateObserved += winner.cache_create_tokens;
+
+        await writer.write(
+          sseFrame('speech', {
+            seat_id: winner.speaker.seat_id,
+            display_name: winner.speaker.display_name,
+            content: winner.text,
+            usage_cents: winner.usage_cents,
+            cache_read_tokens: winner.cache_read_tokens,
+            cache_create_tokens: winner.cache_create_tokens,
+          }),
+        );
+      }
+
+      // 12) Auto-flip to voting if we just finished the last round.
+      let status: 'active' | 'voting' = 'active';
+      const totalRounds = 4;
+      if (newRoundNo >= totalRounds) {
+        await env.DB
+          .prepare("UPDATE match SET status = 'voting' WHERE id = ?")
+          .bind(matchId)
+          .run();
+        status = 'voting';
+      }
+
+      await writer.write(
+        sseFrame('round_end', {
+          match_id: matchId,
+          round_no: newRoundNo,
+          match_status: status,
+          cache: {
+            read_tokens: cacheReadObserved,
+            create_tokens: cacheCreateObserved,
+          },
+          seats: seats.map(s => ({
+            seat_id: s.seat_id,
+            display_name: s.display_name,
+            seat_index: s.seat_index,
+          })),
+        }),
+      );
+    } catch (err) {
+      try {
+        await writer.write(
+          sseFrame('error', {
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        );
+      } catch {
+        // writer may already be closed; swallow.
+      }
+    } finally {
+      try {
+        await writer.close();
+      } catch {
+        // ignore double-close
+      }
+    }
+  })();
+
+  return new Response(readable, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      // Disable proxy buffering (nginx-style hint; harmless if ignored).
+      'X-Accel-Buffering': 'no',
     },
-    match_status: status,
-    seats: seats.map(s => ({ seat_id: s.seat_id, display_name: s.display_name, seat_index: s.seat_index })),
   });
 };
