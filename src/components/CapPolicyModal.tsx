@@ -10,13 +10,14 @@ tags:
   - "modal"
   - "saurons-arena"
 summary: >
-  CapPolicyModal — inline modal launched from
-  MatchesRemainingIndicator. Renders the verbatim
-  cap_policy.rationale text fetched from /api/meta as the source of
-  truth, plus the per-browser and per-day spend numbers. Closes on
-  backdrop click, Escape, or the close button. Fetches /api/meta on
-  mount if not provided. Also: cap rationale modal, policy modal,
-  honest cap explanation, free game cap surface.
+  CapPolicyModal — inline modal launched from the lobby/header
+  "cap policy" button. Renders the verbatim cap_policy.rationale
+  text fetched from /api/meta as the source of truth, plus the
+  system-wide daily spend ceiling and spent-today numbers. The
+  per-user daily cap was removed 2026-05-20; only the system-wide
+  spend ceiling remains. Closes on backdrop click, Escape, or the
+  close button. Also: cap rationale modal, policy modal, honest
+  cap explanation, system spend cap surface, free game cap surface.
 rationale: >
   The directive requires the rationale text live on the server so
   cap changes propagate without a UI redeploy. The modal is the
@@ -81,20 +82,14 @@ export function CapPolicyModal({
             <p className="cap-modal-rationale">{meta.cap_policy.rationale}</p>
             <dl className="cap-modal-numbers">
               <div>
-                <dt>Matches per browser per day</dt>
-                <dd>{meta.cap_policy.matches_per_browser_per_day}</dd>
-              </div>
-              <div>
                 <dt>Daily project spend ceiling</dt>
                 <dd>
                   ${(meta.cap_policy.daily_spend_cap_usd_cents / 100).toFixed(2)}
                 </dd>
               </div>
               <div>
-                <dt>Used today</dt>
+                <dt>Spent today</dt>
                 <dd>
-                  {meta.current.matches_used_today} matches,
-                  {' '}
                   ${(meta.current.spent_cents / 100).toFixed(2)}
                 </dd>
               </div>

@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#a78bfa" />
     <meta name="robots" content="index,follow" />
     <title>About — Sauron's Arena</title>
-    <meta name="description" content="Sauron's Arena is a free deliberation game. This page explains the per-day match cap and why it exists." />
+    <meta name="description" content="Sauron's Arena is a free deliberation game. This page explains the system-wide daily spend ceiling that bounds compute cost." />
     <link rel="canonical" href="https://sauronsarena.com/about" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -110,16 +110,12 @@
 
       <dl class="policy-numbers" id="policy-numbers" hidden>
         <div>
-          <dt>Matches per browser per day</dt>
-          <dd id="cap-matches">—</dd>
-        </div>
-        <div>
           <dt>Daily project spend ceiling</dt>
           <dd id="cap-spend">—</dd>
         </div>
         <div>
-          <dt>Used today (this browser)</dt>
-          <dd id="cap-used">—</dd>
+          <dt>Spent today (across all players)</dt>
+          <dd id="cap-spent">—</dd>
         </div>
         <div>
           <dt>Resets</dt>
@@ -159,13 +155,10 @@
 
           const nums = document.getElementById('policy-numbers');
           nums.hidden = false;
-          document.getElementById('cap-matches').textContent =
-            String(meta.cap_policy.matches_per_browser_per_day);
           document.getElementById('cap-spend').textContent =
             '$' + (meta.cap_policy.daily_spend_cap_usd_cents / 100).toFixed(2);
-          document.getElementById('cap-used').textContent =
-            meta.current.matches_used_today + ' matches, $' +
-            (meta.current.spent_cents / 100).toFixed(2);
+          document.getElementById('cap-spent').textContent =
+            '$' + (meta.current.spent_cents / 100).toFixed(2);
         } catch (e) {
           const box = document.getElementById('rationale');
           box.classList.remove('loading');

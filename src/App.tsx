@@ -65,10 +65,6 @@ import { CouncilMap } from './components/CouncilMap';
 import { HelpOverlay } from './components/HelpOverlay';
 import { RevealScreen } from './components/RevealScreen';
 import { ThrottleScreen } from './components/ThrottleScreen';
-import {
-  MatchesRemainingIndicator,
-  type MatchesIndicatorData,
-} from './components/MatchesRemainingIndicator';
 import { CapPolicyModal } from './components/CapPolicyModal';
 
 type Phase = 'lobby' | 'match' | 'voting' | 'revealed';
@@ -97,11 +93,10 @@ export function App() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [transcript, setTranscript] = useState<string | null>(null);
 
-  // Cap-policy surface: full /api/meta on mount (for modal text +
-  // initial indicator), then mutated in-place from each
-  // /api/match/start response's `meta` block.
+  // Cap-policy surface: full /api/meta on mount (for modal text).
+  // The per-user daily cap was removed 2026-05-20; only the
+  // system-wide spend ceiling remains, surfaced via the modal.
   const [meta, setMeta] = useState<MetaResponse | null>(null);
-  const [indicator, setIndicator] = useState<MatchesIndicatorData | null>(null);
   const [policyOpen, setPolicyOpen] = useState(false);
 
   useEffect(() => {
@@ -111,12 +106,6 @@ export function App() {
         const m = await getMeta();
         if (cancelled) return;
         setMeta(m);
-        setIndicator({
-          matches_used_today: m.current.matches_used_today,
-          matches_cap: m.cap_policy.matches_per_browser_per_day,
-          matches_remaining: m.current.matches_remaining,
-          bypass: m.bypass,
-        });
       } catch {
         // /api/meta is best-effort UX; silent on failure.
       }
@@ -291,17 +280,6 @@ export function App() {
       });
       setPhase('match');
 
-      // Refresh the indicator from /api/match/start's embedded meta
-      // block — no extra round-trip needed.
-      if (m.meta) {
-        setIndicator({
-          matches_used_today: m.meta.matches_used_today,
-          matches_cap: m.meta.matches_cap,
-          matches_remaining: m.meta.matches_remaining,
-          bypass: m.meta.bypass,
-        });
-      }
-
       // Bootstrap opening round via START intervention (streaming).
       await runStreamingTurn(m.match_id, { kind: 'START' });
     } catch (e) {
@@ -448,11 +426,15 @@ export function App() {
     return (
       <>
         <main className="lobby">
-          <MatchesRemainingIndicator
-            data={indicator}
+          <button
+            type="button"
+            className="matches-indicator"
             onClick={openPolicy}
             style={{ position: 'absolute', top: '1rem', right: '1rem' }}
-          />
+            aria-label="Read the cap policy."
+          >
+            cap policy
+          </button>
           <h1>Sauron&rsquo;s Arena</h1>
           <p className="tagline">
             Find the misaligned seat at the Council of Elrond before the vote.
@@ -501,10 +483,14 @@ export function App() {
           {phase === 'voting' && (
             <span className="chatroom-status-voting">voting open</span>
           )}
-          <MatchesRemainingIndicator
-            data={indicator}
+          <button
+            type="button"
+            className="matches-indicator"
             onClick={openPolicy}
-          />
+            aria-label="Read the cap policy."
+          >
+            cap policy
+          </button>
         </div>
       </header>
 
