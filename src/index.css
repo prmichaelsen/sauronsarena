@@ -1085,3 +1085,117 @@ code, kbd { font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace
     text-overflow: ellipsis;
   }
 }
+
+/* ───── matches-remaining indicator ──────────────────────────────────── */
+
+.matches-indicator {
+  font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  padding: 0.32rem 0.7rem;
+  background: var(--bg-card);
+  color: var(--ink-dim);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 120ms, border-color 120ms, background 120ms;
+  white-space: nowrap;
+}
+.matches-indicator:hover {
+  color: var(--gold);
+  border-color: var(--gold-dim);
+  background: var(--bg-card-hi);
+}
+.matches-indicator:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* ───── cap-policy modal ─────────────────────────────────────────────── */
+
+.cap-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 12, 16, 0.72);
+  backdrop-filter: blur(4px);
+  display: grid;
+  place-items: center;
+  z-index: 100;
+  padding: 1.5rem;
+}
+.cap-modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border-hi);
+  border-radius: 0.6rem;
+  max-width: 32rem;
+  width: 100%;
+  padding: 0;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+}
+.cap-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+}
+.cap-modal-head h2 {
+  margin: 0;
+  font-family: 'Cormorant Garamond', 'Garamond', serif;
+  font-size: 1.4rem;
+  color: var(--gold);
+  font-weight: 600;
+}
+.cap-modal-close {
+  background: transparent;
+  border: none;
+  color: var(--ink-dim);
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.25rem;
+}
+.cap-modal-close:hover { color: var(--ink); }
+.cap-modal-body {
+  padding: 1rem 1.25rem 1.25rem;
+}
+.cap-modal-rationale {
+  margin: 0 0 1rem;
+  color: var(--ink);
+  line-height: 1.55;
+  font-size: 0.95rem;
+}
+.cap-modal-numbers {
+  margin: 0 0 0.9rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 1rem;
+  font-size: 0.85rem;
+}
+.cap-modal-numbers > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.cap-modal-numbers dt {
+  color: var(--ink-low);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.cap-modal-numbers dd {
+  margin: 0;
+  color: var(--ink);
+  font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+}
+.cap-modal-footnote {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--ink-dim);
+}
+.cap-modal-footnote a {
+  color: var(--gold);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--gold-dim);
+}
+.cap-modal-footnote a:hover { color: var(--ink); }

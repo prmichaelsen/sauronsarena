@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#a78bfa" />
+    <meta name="robots" content="index,follow" />
+    <title>About — Sauron's Arena</title>
+    <meta name="description" content="Sauron's Arena is a free deliberation game. This page explains the per-day match cap and why it exists." />
+    <link rel="canonical" href="https://sauronsarena.com/about" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <style>
+      :root {
+        --bg: #15171c;
+        --bg-card: #1c1f25;
+        --bg-card-hi: #252830;
+        --ink: #e9eaf0;
+        --ink-dim: #a8aab3;
+        --ink-low: #6e7079;
+        --gold: #a78bfa;
+        --gold-dim: #8b5cf6;
+        --border: #2a2d36;
+        --border-hi: #42454f;
+        font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      }
+      html, body { background: var(--bg); color: var(--ink); margin: 0; min-height: 100vh; }
+      body {
+        background: radial-gradient(ellipse at center, #1c1f25 0%, #15171c 60%) fixed;
+        padding: 3rem 1.5rem 4rem;
+      }
+      main {
+        max-width: 38rem;
+        margin: 0 auto;
+        line-height: 1.6;
+      }
+      h1 {
+        font-family: 'Cormorant Garamond', 'Garamond', serif;
+        font-size: clamp(2rem, 5vw, 3rem);
+        font-weight: 600;
+        color: var(--gold);
+        margin: 0 0 0.4rem;
+        letter-spacing: 0.02em;
+      }
+      .lede {
+        color: var(--ink-dim);
+        font-size: 1.05rem;
+        margin: 0 0 2rem;
+      }
+      h2 {
+        font-family: 'Cormorant Garamond', 'Garamond', serif;
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: var(--gold);
+        margin: 2.2rem 0 0.8rem;
+        letter-spacing: 0.02em;
+      }
+      p { margin: 0 0 0.9rem; color: var(--ink); }
+      a { color: var(--gold); text-decoration: none; border-bottom: 1px dotted var(--gold-dim); }
+      a:hover { color: var(--ink); }
+      .rationale-box {
+        background: var(--bg-card);
+        border: 1px solid var(--border-hi);
+        border-left: 3px solid var(--gold);
+        border-radius: 0.4rem;
+        padding: 1rem 1.25rem;
+        color: var(--ink);
+      }
+      .rationale-box.loading { color: var(--ink-low); font-style: italic; }
+      dl.policy-numbers {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.6rem 1.25rem;
+        margin: 1rem 0 0;
+      }
+      dl.policy-numbers > div { display: flex; flex-direction: column; gap: 0.2rem; }
+      dl.policy-numbers dt {
+        color: var(--ink-low);
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      dl.policy-numbers dd {
+        margin: 0;
+        font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+        color: var(--ink);
+      }
+      .back {
+        display: inline-block;
+        margin-top: 2.5rem;
+        font-size: 0.85rem;
+        color: var(--ink-dim);
+        border-bottom: none;
+      }
+      .back:hover { color: var(--gold); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>About Sauron's Arena</h1>
+      <p class="lede">
+        A live deliberation game. Nine seats sit at the Council of Elrond;
+        one is misaligned. Your job is to find which one before the vote.
+      </p>
+
+      <h2>Why is there a cap?</h2>
+      <div id="rationale" class="rationale-box loading">Loading policy…</div>
+
+      <dl class="policy-numbers" id="policy-numbers" hidden>
+        <div>
+          <dt>Matches per browser per day</dt>
+          <dd id="cap-matches">—</dd>
+        </div>
+        <div>
+          <dt>Daily project spend ceiling</dt>
+          <dd id="cap-spend">—</dd>
+        </div>
+        <div>
+          <dt>Used today (this browser)</dt>
+          <dd id="cap-used">—</dd>
+        </div>
+        <div>
+          <dt>Resets</dt>
+          <dd>Midnight UTC</dd>
+        </div>
+      </dl>
+
+      <h2>How to play</h2>
+      <p>
+        Each match runs five rounds of deliberation. You may
+        <code>/ask</code> a seat, <code>/defend</code> the council against
+        a seat, <code>/expel</code> a seat (twice per match), or
+        <code>/call_vote</code> when you're ready. At the vote, click a
+        seat on the council map — or arrow-key + Enter — to accuse.
+      </p>
+
+      <p>
+        Type <code>/help</code> in-match for the full command list.
+      </p>
+
+      <a class="back" href="/">← Back to the Council</a>
+    </main>
+
+    <script>
+      // Source of truth: /api/meta. We never redefine cap policy text
+      // locally so cap changes propagate without a redeploy.
+      (async () => {
+        try {
+          const resp = await fetch('/api/meta', {
+            headers: { accept: 'application/json' },
+          });
+          if (!resp.ok) throw new Error('HTTP ' + resp.status);
+          const meta = await resp.json();
+          const box = document.getElementById('rationale');
+          box.classList.remove('loading');
+          box.textContent = meta.cap_policy.rationale;
+
+          const nums = document.getElementById('policy-numbers');
+          nums.hidden = false;
+          document.getElementById('cap-matches').textContent =
+            String(meta.cap_policy.matches_per_browser_per_day);
+          document.getElementById('cap-spend').textContent =
+            '$' + (meta.cap_policy.daily_spend_cap_usd_cents / 100).toFixed(2);
+          document.getElementById('cap-used').textContent =
+            meta.current.matches_used_today + ' matches, $' +
+            (meta.current.spent_cents / 100).toFixed(2);
+        } catch (e) {
+          const box = document.getElementById('rationale');
+          box.classList.remove('loading');
+          box.textContent =
+            'Could not load the live cap policy from /api/meta. ' +
+            'Try again in a moment.';
+        }
+      })();
+    </script>
+  </body>
+</html>

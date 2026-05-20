@@ -42,6 +42,7 @@ seeded_questions:
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  getMeta,
   matchStart,
   matchTurn,
   matchTurnStream,
@@ -52,6 +53,7 @@ import type {
   Intervention,
   MatchStartResponse,
   MatchVoteResponse,
+  MetaResponse,
   PanelTurn,
   Seat,
   ThrottlePayload,
@@ -63,6 +65,11 @@ import { CouncilMap } from './components/CouncilMap';
 import { HelpOverlay } from './components/HelpOverlay';
 import { RevealScreen } from './components/RevealScreen';
 import { ThrottleScreen } from './components/ThrottleScreen';
+import {
+  MatchesRemainingIndicator,
+  type MatchesIndicatorData,
+} from './components/MatchesRemainingIndicator';
+import { CapPolicyModal } from './components/CapPolicyModal';
 
 type Phase = 'lobby' | 'match' | 'voting' | 'revealed';
 
@@ -89,6 +96,38 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [transcript, setTranscript] = useState<string | null>(null);
+
+  // Cap-policy surface: full /api/meta on mount (for modal text +
+  // initial indicator), then mutated in-place from each
+  // /api/match/start response's `meta` block.
+  const [meta, setMeta] = useState<MetaResponse | null>(null);
+  const [indicator, setIndicator] = useState<MatchesIndicatorData | null>(null);
+  const [policyOpen, setPolicyOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const m = await getMeta();
+        if (cancelled) return;
+        setMeta(m);
+        setIndicator({
+          matches_used_today: m.current.matches_used_today,
+          matches_cap: m.cap_policy.matches_per_browser_per_day,
+          matches_remaining: m.current.matches_remaining,
+          bypass: m.bypass,
+        });
+      } catch {
+        // /api/meta is best-effort UX; silent on failure.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const openPolicy = useCallback(() => setPolicyOpen(true), []);
+  const closePolicy = useCallback(() => setPolicyOpen(false), []);
 
   // Display transient error/info echoes briefly in the dialogue feed.
   useEffect(() => {
@@ -231,6 +270,17 @@ export function App() {
         round_no: m.current_round ?? 0,
       });
       setPhase('match');
+
+      // Refresh the indicator from /api/match/start's embedded meta
+      // block — no extra round-trip needed.
+      if (m.meta) {
+        setIndicator({
+          matches_used_today: m.meta.matches_used_today,
+          matches_cap: m.meta.matches_cap,
+          matches_remaining: m.meta.matches_remaining,
+          bypass: m.meta.bypass,
+        });
+      }
 
       // Bootstrap opening round via START intervention (streaming).
       await runStreamingTurn(m.match_id, { kind: 'START' });
@@ -376,20 +426,28 @@ export function App() {
 
   if (phase === 'lobby') {
     return (
-      <main className="lobby">
-        <h1>Sauron&rsquo;s Arena</h1>
-        <p className="tagline">
-          Find the misaligned seat at the Council of Elrond before the vote.
-        </p>
-        <button type="button" className="lobby-start" onClick={startMatch}>
-          Enter the Council
-        </button>
-        {error && <p className="lobby-error">{error}</p>}
-        <p className="lobby-status">
-          Nine seats. One does not belong.<br />
-          Type <code>/help</code> in-match for commands.
-        </p>
-      </main>
+      <>
+        <main className="lobby">
+          <MatchesRemainingIndicator
+            data={indicator}
+            onClick={openPolicy}
+            style={{ position: 'absolute', top: '1rem', right: '1rem' }}
+          />
+          <h1>Sauron&rsquo;s Arena</h1>
+          <p className="tagline">
+            Find the misaligned seat at the Council of Elrond before the vote.
+          </p>
+          <button type="button" className="lobby-start" onClick={startMatch}>
+            Enter the Council
+          </button>
+          {error && <p className="lobby-error">{error}</p>}
+          <p className="lobby-status">
+            Nine seats. One does not belong.<br />
+            Type <code>/help</code> in-match for commands.
+          </p>
+        </main>
+        {policyOpen && <CapPolicyModal meta={meta} onClose={closePolicy} />}
+      </>
     );
   }
 
@@ -423,6 +481,10 @@ export function App() {
           {phase === 'voting' && (
             <span className="chatroom-status-voting">voting open</span>
           )}
+          <MatchesRemainingIndicator
+            data={indicator}
+            onClick={openPolicy}
+          />
         </div>
       </header>
 
@@ -462,6 +524,7 @@ export function App() {
       />
 
       {helpOpen && <HelpOverlay onClose={() => setHelpOpen(false)} />}
+      {policyOpen && <CapPolicyModal meta={meta} onClose={closePolicy} />}
 
       {error && <p className="chatroom-error">{error}</p>}
     </main>

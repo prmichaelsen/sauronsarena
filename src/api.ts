@@ -45,6 +45,15 @@ export interface MatchScenario {
   rounds_total: number;
 }
 
+export interface StartMeta {
+  matches_used_today: number;
+  matches_cap: number;
+  matches_remaining: number;
+  spend_throttle_message?: string;
+  rate_throttle_message?: string;
+  bypass: boolean;
+}
+
 export interface MatchStartResponse {
   match_id: string;
   scenario: MatchScenario;
@@ -53,6 +62,52 @@ export interface MatchStartResponse {
   expel_uses_remaining?: number;
   current_round?: number;
   status?: string;
+  meta?: StartMeta;
+}
+
+// /api/meta response — public-readable cap policy + current usage.
+// Source of truth for the cap-policy rationale text (the UI must not
+// redefine it locally per the arena-infra-worker contract).
+export interface CapPolicy {
+  matches_per_browser_per_day: number;
+  daily_spend_cap_usd_cents: number;
+  rationale: string;
+  messages: {
+    spend_cap_hit: string;
+    rate_cap_hit: string;
+  };
+}
+
+export interface MetaResponse {
+  day: string;
+  retry_after_seconds: number;
+  cap_policy: CapPolicy;
+  current: {
+    matches_used_today: number;
+    matches_remaining: number;
+    spent_cents: number;
+    spend_throttled: boolean;
+    rate_throttled: boolean;
+  };
+  bypass: boolean;
+}
+
+export async function getMeta(): Promise<MetaResponse> {
+  const resp = await fetch(`${API_BASE}/api/meta`, {
+    method: 'GET',
+    headers: { accept: 'application/json' },
+  });
+  const text = await resp.text();
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    throw new ApiError(resp.status, text, `Non-JSON response from /api/meta`);
+  }
+  if (!resp.ok) {
+    throw new ApiError(resp.status, json, `HTTP ${resp.status} from /api/meta`);
+  }
+  return json as MetaResponse;
 }
 
 export interface PanelTurn {
