@@ -1,0 +1,9 @@
+# robots.txt — sauronsarena.com
+# Allow indexing of the player-facing site. Functions live at /api/*
+# (no value to search engines).
+
+User-agent: *
+Allow: /
+Disallow: /api/
+
+Sitemap: https://sauronsarena.com/sitemap.xml

@@ -12,12 +12,17 @@ tags:
   - "seat-roster"
   - "saurons-arena"
 summary: >
-  Global styles for Sauron's Arena UI (chat-room redesign 2026-05-20).
-  Dark parchment palette, three-row chat-room shell (thin header /
-  body with sidebar roster + dominant speech stream / slash-command
-  input footer), help overlay, reveal scorecard, throttle screen,
-  lobby. Mobile collapses sidebar to a compact top bar. Also: arena
-  styles, dark parchment palette, chat-room layout, slash input,
+  Global styles for Sauron's Arena UI. Cool dark grey + purple + light
+  grey palette (re-themed 2026-05-20 from prior dark-parchment palette
+  per originator directive — deliberation-chamber mood, blue-midnight
+  background, violet primary accent, light-grey secondary). Three-row
+  chat-room shell (thin header / body with sidebar roster + dominant
+  speech stream / slash-command input footer), help overlay, reveal
+  scorecard, throttle screen, lobby. Mobile collapses sidebar to a
+  compact top bar. Note: `--gold` and `--rust` CSS-var names are
+  retained for class-reference stability; their values are now
+  violet (#a78bfa) and red-orange (#f87171). Also: arena styles, cool
+  palette, purple accent, dark grey, chat-room layout, slash input,
   help overlay, scorecard grid, mobile responsive.
 rationale: >
   Per 2026-05-20 chat-room directive: speech feed dominates, council
@@ -37,25 +42,34 @@ seeded_questions:
 
 :root {
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  background: #0a0806;
-  color: #e9dcc0;
+  background: #15171c;
+  color: #e9eaf0;
   font-synthesis: none;
   -webkit-font-smoothing: antialiased;
 
-  --bg: #0a0806;
-  --bg-card: #15110b;
-  --bg-card-hi: #1d1812;
-  --ink: #e9dcc0;
-  --ink-dim: #c8b896;
-  --ink-low: #7a7060;
-  --gold: #f4d35e;
-  --gold-dim: #c9a951;
-  --rust: #c25b3a;
-  --rust-dim: #8c3f29;
-  --border: #2b2419;
-  --border-hi: #4a3f2a;
-  --player: #6ec3e8;
-  --player-dim: #4a8aa8;
+  /* Cool dark grey + purple + light grey palette (2026-05-20).
+     Background leans blue-midnight, primary accent is violet, secondary
+     accents are quiet light grey, warning state is a saturated red-orange
+     that reads against purple. Keeps the deliberation-chamber mood without
+     the gothic / parchment warmth of the prior palette. */
+  --bg: #15171c;
+  --bg-card: #1c1f25;
+  --bg-card-hi: #252830;
+  --ink: #e9eaf0;
+  --ink-dim: #a8aab3;
+  --ink-low: #6e7079;
+  /* Primary accent — purple. `--gold` retained as the CSS-var name so
+     downstream class references stay stable; the value is now violet. */
+  --gold: #a78bfa;
+  --gold-dim: #8b5cf6;
+  /* Warning / accusation states. `--rust` retained as the CSS-var name. */
+  --rust: #f87171;
+  --rust-dim: #c14848;
+  --border: #2a2d36;
+  --border-hi: #42454f;
+  /* Player echo — cool sky blue, kept cool to complement purple. */
+  --player: #7dd3fc;
+  --player-dim: #3b82a8;
 }
 
 * { box-sizing: border-box; }
@@ -65,7 +79,7 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(ellipse at center, #15110b 0%, #0a0806 60%) fixed;
+    radial-gradient(ellipse at center, #1c1f25 0%, #15171c 60%) fixed;
 }
 #root {
   min-height: 100vh;
@@ -150,7 +164,7 @@ code, kbd { font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace
   gap: 1rem;
   padding: 0.75rem 1.25rem;
   border-bottom: 1px solid var(--border);
-  background: linear-gradient(180deg, #1a1610 0%, #15110b 100%);
+  background: linear-gradient(180deg, #1f222a 0%, #1c1f25 100%);
 }
 .chatroom-title-block { min-width: 0; }
 .chatroom-title {
@@ -215,7 +229,7 @@ code, kbd { font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace
   left: 50%;
   bottom: 0.75rem;
   transform: translateX(-50%);
-  background: rgba(42, 33, 23, 0.95);
+  background: rgba(30, 33, 40, 0.95);
   border: 1px solid var(--gold-dim);
   color: var(--gold);
   padding: 0.45rem 0.9rem;
@@ -245,7 +259,7 @@ code, kbd { font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace
 
 .roster {
   border-right: 1px solid var(--border);
-  background: #100c08;
+  background: #181b22;
   padding: 0.85rem 0.75rem;
   display: flex;
   flex-direction: column;
@@ -292,14 +306,14 @@ code, kbd { font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace
   transition: background 150ms, border-color 150ms, color 150ms;
 }
 .roster-seat.is-speaking {
-  background: rgba(244, 211, 94, 0.08);
+  background: rgba(167, 139, 250, 0.08);
   border-left-color: var(--gold);
   color: var(--gold);
   animation: speaking-pulse 1.8s ease-in-out infinite;
 }
 @keyframes speaking-pulse {
-  0%, 100% { background: rgba(244, 211, 94, 0.06); }
-  50%      { background: rgba(244, 211, 94, 0.14); }
+  0%, 100% { background: rgba(167, 139, 250, 0.06); }
+  50%      { background: rgba(167, 139, 250, 0.14); }
 }
 .roster-seat-dot {
   width: 6px;
@@ -321,7 +335,7 @@ code, kbd { font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace
 .roster-seat.is-speaking .roster-seat-sigil {
   color: var(--gold);
   opacity: 1;
-  filter: drop-shadow(0 0 3px rgba(244, 211, 94, 0.6));
+  filter: drop-shadow(0 0 3px rgba(167, 139, 250, 0.6));
 }
 .roster-seat-name {
   font-family: 'Cormorant Garamond', serif;
@@ -380,7 +394,7 @@ code, kbd { font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace
   margin-top: 3rem;
 }
 .speech-turn {
-  background: #1a1610;
+  background: #1f222a;
   border-left: 3px solid var(--gold-dim);
   padding: 0.75rem 1rem;
   border-radius: 3px;
@@ -435,7 +449,7 @@ code, kbd { font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace
   margin-left: auto;
   border-left: none;
   border-right: 3px solid var(--player-dim);
-  background: #0f1822;
+  background: #0d1622;
   max-width: 80%;
 }
 .speech-turn-player .speech-turn-speaker {
@@ -454,7 +468,7 @@ code, kbd { font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace
 }
 .speech-turn-body-cmd code {
   color: var(--player);
-  background: rgba(110, 195, 232, 0.08);
+  background: rgba(125, 211, 252, 0.08);
   padding: 0.05rem 0.3rem;
   border-radius: 2px;
 }
@@ -492,7 +506,7 @@ code, kbd { font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace
 
 .slash-input {
   border-top: 1px solid var(--border);
-  background: linear-gradient(0deg, #0d0a07 0%, #15110b 100%);
+  background: linear-gradient(0deg, #14161c 0%, #1c1f25 100%);
   padding: 0.65rem 1rem 0.85rem;
 }
 .slash-input-row {
@@ -501,7 +515,7 @@ code, kbd { font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace
   display: flex;
   align-items: center;
   gap: 0.65rem;
-  background: #0a0806;
+  background: #15171c;
   border: 1px solid var(--border-hi);
   border-radius: 3px;
   padding: 0.45rem 0.75rem;
@@ -509,7 +523,7 @@ code, kbd { font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace
 }
 .slash-input-row:focus-within {
   border-color: var(--gold);
-  box-shadow: 0 0 0 1px rgba(244, 211, 94, 0.2);
+  box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.2);
 }
 .slash-input-caret {
   color: var(--gold);
@@ -577,7 +591,7 @@ code, kbd { font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace
 .help-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(8, 6, 4, 0.78);
+  background: rgba(10, 12, 18, 0.82);
   backdrop-filter: blur(4px);
   display: grid;
   place-items: center;
@@ -734,7 +748,7 @@ code, kbd { font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace
   margin-top: 0.5rem;
 }
 .reveal-cell {
-  background: #15110b;
+  background: #1c1f25;
   border: 1px solid var(--border);
   padding: 1rem 1.1rem;
   border-radius: 4px;
@@ -747,8 +761,8 @@ code, kbd { font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace
 .reveal-cell.is-active {
   opacity: 1;
   border-color: var(--gold);
-  box-shadow: 0 0 24px rgba(244, 211, 94, 0.15);
-  background: #1a1610;
+  box-shadow: 0 0 24px rgba(167, 139, 250, 0.15);
+  background: #1f222a;
 }
 .reveal-cell-title {
   font-family: 'Cormorant Garamond', serif;
@@ -864,7 +878,7 @@ code, kbd { font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace
   }
   .roster-seat.is-speaking {
     border-color: var(--gold);
-    background: rgba(244, 211, 94, 0.12);
+    background: rgba(167, 139, 250, 0.12);
   }
   .roster-seat-name {
     font-size: 0.78rem;
@@ -933,8 +947,8 @@ code, kbd { font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace
   z-index: 30;
   background: radial-gradient(
     ellipse at center,
-    rgba(21, 17, 11, 0.96) 0%,
-    rgba(10, 8, 6, 0.985) 70%
+    rgba(28, 31, 37, 0.96) 0%,
+    rgba(15, 17, 22, 0.985) 70%
   );
   display: flex;
   flex-direction: column;
@@ -972,7 +986,7 @@ code, kbd { font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace
   display: block;
 }
 .council-map-table {
-  fill: rgba(244, 211, 94, 0.04);
+  fill: rgba(167, 139, 250, 0.04);
   stroke: var(--border-hi);
   stroke-width: 0.4;
   stroke-dasharray: 1 0.8;
@@ -1020,13 +1034,13 @@ code, kbd { font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace
 .council-map-seat.is-highlighted {
   border-color: var(--gold);
   background: var(--bg-card-hi);
-  box-shadow: 0 0 0 2px rgba(244, 211, 94, 0.25);
+  box-shadow: 0 0 0 2px rgba(167, 139, 250, 0.25);
   transform: scale(1.06);
 }
 .council-map-seat.is-armed {
   border-color: var(--gold);
-  background: rgba(244, 211, 94, 0.18);
-  box-shadow: 0 0 0 3px rgba(244, 211, 94, 0.4);
+  background: rgba(167, 139, 250, 0.18);
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.4);
 }
 .council-map-seat:disabled {
   opacity: 0.45;
