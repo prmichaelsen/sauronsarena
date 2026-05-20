@@ -54,6 +54,7 @@ import {
   SPEND_THROTTLE_MESSAGE,
   recordSpend,
 } from '../../_utils/throttle';
+import { resolveAdmin } from '../../_utils/cookies';
 import {
   loadMatch,
   loadSeats,
@@ -99,7 +100,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   }
 
   // 2) Spend pre-check (redundant with middleware, but defensive).
-  const t = await throttleState(env, null);
+  //    Admin/dev requests skip the cap.
+  const admin = resolveAdmin(request, env.ADMIN_DEV_TOKEN);
+  const t = await throttleState(env, null, admin.isAdmin);
   if (t.spend_throttled) {
     return throttleResponse(SPEND_THROTTLE_MESSAGE);
   }

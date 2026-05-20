@@ -1,5 +1,12 @@
 // functions/_utils/throttle.ts
 // Spend-cap + per-browser-per-day rate limit + spend bookkeeping.
+//
+// Admin/dev bypass: when `isAdmin: true` is passed, throttleState
+// returns both throttled bits as false regardless of underlying
+// counters. The actual spent/matches counters are still reported so
+// the admin UI can show "you're past the cap but bypassed". Admin
+// calls also skip incrementMatchCount (caller's responsibility) so
+// originator iteration doesn't burn the anon-user budget.
 
 import type { Env } from './env';
 import { todayUTC, secondsToMidnightUTC } from './env';
@@ -11,6 +18,7 @@ export interface ThrottleState {
   matches_cap: number;
   spend_throttled: boolean;
   rate_throttled: boolean;
+  is_admin: boolean;
 }
 
 export async function readSpentCents(env: Env): Promise<number> {
@@ -29,7 +37,11 @@ export async function readMatchesToday(env: Env, browserId: string): Promise<num
   return row?.matches ?? 0;
 }
 
-export async function throttleState(env: Env, browserId: string | null): Promise<ThrottleState> {
+export async function throttleState(
+  env: Env,
+  browserId: string | null,
+  isAdmin: boolean = false,
+): Promise<ThrottleState> {
   const cap_cents = Number(env.DAILY_SPEND_CAP_USD_CENTS ?? '5000');
   const matches_cap = Number(env.ANON_MATCHES_PER_DAY ?? '3');
   const spent_cents = await readSpentCents(env);
@@ -39,8 +51,9 @@ export async function throttleState(env: Env, browserId: string | null): Promise
     cap_cents,
     matches_today,
     matches_cap,
-    spend_throttled: spent_cents >= cap_cents,
-    rate_throttled: matches_today >= matches_cap,
+    spend_throttled: !isAdmin && spent_cents >= cap_cents,
+    rate_throttled: !isAdmin && matches_today >= matches_cap,
+    is_admin: isAdmin,
   };
 }
 

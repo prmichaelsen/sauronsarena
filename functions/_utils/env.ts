@@ -8,6 +8,12 @@ export interface Env {
   ANON_MATCHES_PER_DAY: string;
   ANTHROPIC_MODEL: string;
   ANTHROPIC_API_KEY?: string;
+  // Set via `wrangler pages secret put ADMIN_DEV_TOKEN`. When a
+  // request presents this token (via `?dev=<token>` query param or
+  // `sa_dev` cookie), per-user and spend caps are bypassed. Used by
+  // the originator to iterate on game design without hitting the
+  // cap. Absent on prod by default = no bypass possible.
+  ADMIN_DEV_TOKEN?: string;
 }
 
 export function todayUTC(): string {

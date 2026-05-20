@@ -8,12 +8,20 @@
 import type { Env } from './_utils/env';
 import { secondsToMidnightUTC } from './_utils/env';
 import { readSpentCents, SPEND_THROTTLE_MESSAGE } from './_utils/throttle';
+import { resolveAdmin } from './_utils/cookies';
 
 export const onRequest: PagesFunction<Env> = async (ctx) => {
   const url = new URL(ctx.request.url);
 
   // Only guard /api/match/* — let /api/health and static assets pass.
   if (!url.pathname.startsWith('/api/match/')) {
+    return ctx.next();
+  }
+
+  // Admin/dev bypass — skip the spend-cap short-circuit entirely
+  // for the originator's iteration loop.
+  const admin = resolveAdmin(ctx.request, ctx.env.ADMIN_DEV_TOKEN);
+  if (admin.isAdmin) {
     return ctx.next();
   }
 

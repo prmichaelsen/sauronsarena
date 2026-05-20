@@ -9,6 +9,7 @@ import {
   readBrowserId,
   mintBrowserId,
   setBrowserIdHeader,
+  resolveAdmin,
 } from '../../_utils/cookies';
 import {
   throttleState,
@@ -27,8 +28,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const newCookie = !browserId;
   if (!browserId) browserId = mintBrowserId();
 
-  // 2) Throttle pre-check (spend + rate).
-  const t = await throttleState(env, browserId);
+  // 1b) Admin/dev bypass — originator iteration loop.
+  const admin = resolveAdmin(request, env.ADMIN_DEV_TOKEN);
+
+  // 2) Throttle pre-check (spend + rate). Admin requests skip both.
+  const t = await throttleState(env, browserId, admin.isAdmin);
   if (t.spend_throttled) {
     const r = throttleResponse(SPEND_THROTTLE_MESSAGE);
     if (newCookie) r.headers.append('Set-Cookie', setBrowserIdHeader(browserId));
@@ -81,10 +85,20 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       .run();
   }
 
-  // 5) Bump per-browser-per-day count.
-  await incrementMatchCount(env, browserId);
+  // 5) Bump per-browser-per-day count. Admin requests skip this so
+  //    the originator's iteration doesn't burn the anon-user cap
+  //    counter for whatever browser_id they happen to be on.
+  if (!admin.isAdmin) {
+    await incrementMatchCount(env, browserId);
+  }
 
-  // 6) Return masked payload.
+  // 6) Compute matches_remaining for the meta surface. After
+  //    incrementing (when non-admin), matches_today is t.matches_today
+  //    + 1. For admin, we show the raw count but `bypass: true`.
+  const matchesUsedAfter = admin.isAdmin ? t.matches_today : t.matches_today + 1;
+  const matchesRemaining = Math.max(0, t.matches_cap - matchesUsedAfter);
+
+  // 7) Return masked payload + meta block.
   const payload = {
     match_id: matchId,
     scenario: {
@@ -100,9 +114,18 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     expel_uses_remaining: 2,
     current_round: 0,
     status: 'active',
+    meta: {
+      matches_used_today: matchesUsedAfter,
+      matches_cap: t.matches_cap,
+      matches_remaining: matchesRemaining,
+      spend_throttle_message: SPEND_THROTTLE_MESSAGE,
+      rate_throttle_message: RATE_THROTTLE_MESSAGE,
+      bypass: admin.isAdmin,
+    },
   };
 
   const headers = new Headers({ 'Content-Type': 'application/json' });
   if (newCookie) headers.append('Set-Cookie', setBrowserIdHeader(browserId));
+  if (admin.setCookie) headers.append('Set-Cookie', admin.setCookie);
   return new Response(JSON.stringify(payload), { status: 200, headers });
 };
