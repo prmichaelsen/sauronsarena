@@ -405,7 +405,7 @@ export function SlashCommandInput({
 
   const placeholder =
     phase === 'voting'
-      ? 'Cast your vote — type /vote <name>'
+      ? 'Vote by clicking a seat on the map, or arrow keys + Enter.'
       : 'Type a command (e.g. /ask gandalf why destroy it?). /help for list.';
 
   return (

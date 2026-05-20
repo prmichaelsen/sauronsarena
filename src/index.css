@@ -892,3 +892,182 @@ code, kbd { font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace
     gap: 0.2rem;
   }
 }
+
+/* ---- Pending speech placeholder (SSE streaming) ---- */
+.speech-turn-pending {
+  opacity: 0.78;
+}
+.speech-turn-body-pending {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--gold-dim);
+  font-style: italic;
+  font-size: 0.95em;
+}
+.speech-pending-dots {
+  display: inline-flex;
+  gap: 0.22rem;
+}
+.speech-pending-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gold-dim);
+  animation: speech-pending-pulse 1.1s ease-in-out infinite;
+}
+.speech-pending-dot:nth-child(2) { animation-delay: 0.15s; }
+.speech-pending-dot:nth-child(3) { animation-delay: 0.3s; }
+.speech-pending-label {
+  color: var(--gold-dim);
+}
+@keyframes speech-pending-pulse {
+  0%, 80%, 100% { opacity: 0.25; transform: scale(0.85); }
+  40% { opacity: 1; transform: scale(1); }
+}
+
+/* ---- Council Map (vote-on-map interface) ---- */
+.council-map {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(21, 17, 11, 0.96) 0%,
+    rgba(10, 8, 6, 0.985) 70%
+  );
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  padding: 1.5rem;
+  animation: council-map-fade-in 220ms ease-out;
+}
+.council-map:focus-visible { outline: none; }
+@keyframes council-map-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.council-map-prompt {
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+.council-map-question {
+  font-family: 'Cinzel', serif, ui-serif;
+  font-size: clamp(1.2rem, 2.6vw, 1.85rem);
+  color: var(--gold);
+  margin: 0 0 0.35rem;
+  letter-spacing: 0.04em;
+}
+.council-map-hint {
+  font-size: 0.85rem;
+  color: var(--gold-dim);
+  margin: 0;
+}
+.council-map-svg {
+  width: min(78vw, 760px);
+  height: auto;
+  aspect-ratio: 100 / 70;
+  display: block;
+}
+.council-map-table {
+  fill: rgba(244, 211, 94, 0.04);
+  stroke: var(--border-hi);
+  stroke-width: 0.4;
+  stroke-dasharray: 1 0.8;
+}
+.council-map-anchor {
+  fill: var(--gold-dim);
+  opacity: 0.5;
+}
+.council-map-seats {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+.council-map-seat-li {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+}
+.council-map-seat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.18rem;
+  background: var(--bg-card);
+  border: 2px solid var(--border-hi);
+  border-radius: 999px;
+  padding: 0.5rem 0.75rem 0.55rem;
+  color: var(--gold);
+  font: inherit;
+  cursor: pointer;
+  min-width: 84px;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background 140ms ease,
+    box-shadow 140ms ease;
+}
+.council-map-seat:hover {
+  border-color: var(--gold-dim);
+  background: var(--bg-card-hi);
+}
+.council-map-seat.is-highlighted {
+  border-color: var(--gold);
+  background: var(--bg-card-hi);
+  box-shadow: 0 0 0 2px rgba(244, 211, 94, 0.25);
+  transform: scale(1.06);
+}
+.council-map-seat.is-armed {
+  border-color: var(--gold);
+  background: rgba(244, 211, 94, 0.18);
+  box-shadow: 0 0 0 3px rgba(244, 211, 94, 0.4);
+}
+.council-map-seat:disabled {
+  opacity: 0.45;
+  cursor: wait;
+}
+.council-map-seat-sigil {
+  display: block;
+}
+.council-map-seat-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.council-map-seat-index {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--gold-dim);
+  color: var(--bg);
+  font-size: 0.65rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 760px) {
+  .council-map { padding: 0.75rem; }
+  .council-map-svg { width: 96vw; }
+  .council-map-seat {
+    min-width: 0;
+    padding: 0.35rem 0.5rem;
+  }
+  .council-map-seat-name {
+    font-size: 0.66rem;
+    max-width: 5.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}

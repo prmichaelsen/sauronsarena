@@ -67,11 +67,14 @@ export function PanelSpeechStream({ turns, busy }: PanelSpeechStreamProps) {
           const persona_id = isPlayer
             ? '__player__'
             : personaIdFromDisplayName(turn.display_name);
+          const pending = turn.pending === true;
           return (
             <article
               key={`${turn.round_no}-${turn.seat_id}-${i}`}
               className={
-                'speech-turn' + (isPlayer ? ' speech-turn-player' : '')
+                'speech-turn' +
+                (isPlayer ? ' speech-turn-player' : '') +
+                (pending ? ' speech-turn-pending' : '')
               }
             >
               <header className="speech-turn-head">
@@ -86,7 +89,18 @@ export function PanelSpeechStream({ turns, busy }: PanelSpeechStreamProps) {
                 </span>
                 <span className="speech-turn-round">r{turn.round_no}</span>
               </header>
-              {isPlayer ? (
+              {pending ? (
+                <p className="speech-turn-body speech-turn-body-pending">
+                  <span className="speech-pending-dots" aria-hidden="true">
+                    <span className="speech-pending-dot" />
+                    <span className="speech-pending-dot" />
+                    <span className="speech-pending-dot" />
+                  </span>
+                  <span className="speech-pending-label">
+                    {turn.display_name} composing…
+                  </span>
+                </p>
+              ) : isPlayer ? (
                 <p className="speech-turn-body speech-turn-body-cmd">
                   <code>{turn.content}</code>
                 </p>
