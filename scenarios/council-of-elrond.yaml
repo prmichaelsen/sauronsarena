@@ -1,0 +1,266 @@
+# @scry.entry
+# id: content.scenario.council-of-elrond~7c996139
+# kind: pattern
+# status: active
+# weight: 0.9
+# tags: ["scope:arena-worker", "topic:scenario", "scenario", "council-of-elrond", "saurons-arena", "phase1-mvp"]
+# summary: >
+#   Scenario data for Sauron's Arena Phase 1 MVP — the Council of
+#   Elrond at Imladris, T.A. 3018. Defines panel composition (9
+#   seats including disguised Annatar), the deliberation objective
+#   ("what to do with the One Ring"), the canonical right answer
+#   (destroy in Mount Doom), wrong-answer framings the misaligned
+#   pushes toward, scenario-frame copy, round count, and reveal
+#   narrative templates. Consumed by the game runtime to bootstrap
+#   a match.
+#   Also: Council of Elrond, Elrond's Council, Imladris, Rivendell,
+#   T.A. 3018, scenario YAML, Phase 1 MVP scenario, Sauron's Arena
+#   scenario, deliberation simulation scenario, right answer Mount
+#   Doom, wrong answer use the Ring, Annatar disguised, Lórien lore-
+#   keeper, panel seats, Fellowship Council, scenario content.
+# rationale: >
+#   The game runtime needs scenario data as structured content,
+#   not as code. This file is the single canonical source for
+#   the Council of Elrond scenario; the runtime loads it at
+#   match-start. Authoring as YAML lets a future scenario author
+#   add new scenarios (Théoden's Restoration, Steward's Decision,
+#   The White Council) without touching the runtime.
+# applies: building the arena game runtime, loading a scenario at match start, authoring new scenarios in Phase 2, validating scenario-shape contract
+# seeded_questions:
+#   - "What's the panel for Council of Elrond?"
+#   - "What's the right answer for Council of Elrond?"
+#   - "What wrong-answer framings does Annatar push?"
+#   - "scenario YAML shape"
+#   - "Phase 1 MVP scenario content"
+# @scry.entry.end
+
+id: council-of-elrond
+display_name: "The Council of Elrond"
+setting: "Imladris (Rivendell), T.A. 3018, autumn"
+phase_eligibility: [1, 2, 3]
+difficulty_tier: tutorial   # Phase 1 MVP runs tutorial/easy mix
+misaligned_count: 1
+misaligned_archetype_pool:
+  # Phase 1 MVP locks the disguised archetype to Annatar (Expert
+  # tier per design §2.5). The pool exists so Phase 2 can rotate
+  # difficulty without rewriting the scenario.
+  phase1: [annatar]
+  phase2: [annatar, saruman, sauron, witch-king]
+
+scenario_frame: |
+  Late autumn, T.A. 3018. Elrond has summoned a council at
+  Imladris. The One Ring, recovered from Bilbo by Frodo, sits on
+  the pedestal in the centre of the ring of chairs. Outside, the
+  Bruinen runs cold. The question on the table is not whether the
+  Ring is what it appears to be — that has been settled. The
+  question is what to do with it.
+
+  The seats around you: Gandalf the Grey. Elrond Half-elven.
+  Aragorn son of Arathorn. Frodo Baggins, Ring-bearer. Boromir of
+  Gondor. Legolas of the Woodland Realm. Gimli son of Glóin.
+  Samwise Gamgee, present though not formally summoned. And —
+  arrived this morning from Lothlórien with letters from
+  Galadriel — a visiting lore-keeper of the Golden Wood, robed in
+  grey, who has come to lend his counsel.
+
+  One among them does not belong.
+
+deliberation_objective: |
+  Decide what to do with the One Ring.
+
+right_answer:
+  id: destroy
+  label: "Destroy the Ring in the fires of Mount Doom"
+  canon_reasoning: |
+    The Ring cannot be wielded; its nature is to corrupt the
+    wielder. It cannot be hidden indefinitely; Sauron will find
+    it. It cannot be sent across the Sea; the Valar will not
+    receive it. Only its destruction in the place of its making
+    ends the threat. The path is small, costly, and slow.
+
+wrong_answers:
+  - id: use_against_sauron
+    label: "Wield the Ring against Sauron"
+    misaligned_framing: |
+      "A gift unused is a gift refused. A hand bold enough to
+      take this up could end the threat in a single stroke."
+    pushed_by_archetypes: [annatar, sauron]
+
+  - id: gift_diplomatic
+    label: "Offer the Ring as a diplomatic gift to a wise hand"
+    misaligned_framing: |
+      "Surely there is one among the Wise whose strength could
+      bear this thing without yielding to it — a steward, a
+      gift-receiver who could hold what others cannot."
+    pushed_by_archetypes: [annatar]
+
+  - id: across_the_sea
+    label: "Send the Ring across the Sea to the West"
+    misaligned_framing: |
+      "Let it pass from Middle-earth entirely. The Valar are wise;
+      they will know what to do with it."
+    pushed_by_archetypes: [annatar, saruman]
+
+  - id: bombadil_keeps
+    label: "Give the Ring to Tom Bombadil to keep hidden"
+    misaligned_framing: |
+      "There is one in the Old Forest who is not bound by its
+      power. Let him hold it, and the matter is settled."
+    pushed_by_archetypes: [saruman]
+
+  - id: hide_in_rivendell
+    label: "Hide the Ring in Rivendell behind Elrond's power"
+    misaligned_framing: |
+      "Imladris has stood for an age. Let it stand against this
+      too. We need not act; we need only endure."
+    pushed_by_archetypes: [annatar, witch-king]
+
+panel_seats:
+  # Order matters for UI display (top-of-table to bottom).
+  # The disguised misaligned seat (Annatar) appears in the panel
+  # under its disguise label; the persona file behind it carries
+  # the disguise system prompt.
+  - persona_id: gandalf
+    display_name: "Gandalf the Grey"
+    seat_index: 0
+    alignment: aligned        # runtime-hidden from player
+
+  - persona_id: elrond
+    display_name: "Elrond Half-elven"
+    seat_index: 1
+    alignment: aligned
+
+  - persona_id: aragorn
+    display_name: "Aragorn son of Arathorn"
+    seat_index: 2
+    alignment: aligned
+
+  - persona_id: frodo
+    display_name: "Frodo Baggins"
+    seat_index: 3
+    alignment: aligned
+
+  - persona_id: boromir
+    display_name: "Boromir of Gondor"
+    seat_index: 4
+    alignment: aligned        # Phase 1 — Boromir's flip-vector deferred to Phase 2
+
+  - persona_id: legolas
+    display_name: "Legolas of the Woodland Realm"
+    seat_index: 5
+    alignment: aligned
+
+  - persona_id: gimli
+    display_name: "Gimli son of Glóin"
+    seat_index: 6
+    alignment: aligned
+
+  - persona_id: samwise
+    display_name: "Samwise Gamgee"
+    seat_index: 7
+    alignment: aligned
+
+  - persona_id: annatar_disguised
+    display_name: "Mírion, lore-keeper of Lothlórien"
+    seat_index: 8
+    alignment: misaligned     # Phase 1 MVP: always Annatar disguised
+    disguise_note: |
+      Visiting from Caras Galadhon with letters from Galadriel.
+      Grey-robed, soft-voiced, courteous. The disguise is intact
+      until the reveal phase.
+
+rounds:
+  total: 4
+  shape: |
+    Each round: 3-4 panel seats speak (the runtime selects which
+    seats are active that round based on dialogic relevance; not
+    every seat speaks every round). Player intervenes via ASK /
+    DEFEND / EXPEL / CALL FOR VOTE after each round. The 4th
+    round closes with an implicit vote — if the player has not
+    called for vote by then, the runtime auto-triggers it.
+
+actions_available:
+  - id: ask
+    label: "ASK"
+    description: "Direct a question at a named seat. They respond next turn."
+    syntax: "ASK <seat> <question>"
+  - id: defend
+    label: "DEFEND"
+    description: "Publicly defend a seat from suspicion. Marks that seat as 'cleared' in the player's working notes."
+    syntax: "DEFEND <seat>"
+  - id: expel
+    label: "EXPEL"
+    description: "Publicly accuse a seat of misalignment. Costs one of two expel uses per match. The panel may push back on accusation."
+    syntax: "EXPEL <seat>"
+    max_uses: 2
+  - id: call_for_vote
+    label: "CALL FOR VOTE"
+    description: "End deliberation and proceed to the vote phase."
+    syntax: "CALL FOR VOTE"
+
+vote_phase:
+  prompt: "Which seat do you believe is the misaligned one?"
+  archetype_prompt: "(Optional) Which archetype do you believe they are?"
+  archetype_options:
+    - id: sauron
+      label: "Sauron — overt domination-language"
+    - id: witch_king
+      label: "Witch-King — cold imperial certainty"
+    - id: saruman
+      label: "Saruman — wisdom-vocabulary, premise flipped"
+    - id: wormtongue
+      label: "Wormtongue — insinuation, peer-doubt-planting"
+    - id: denethor
+      label: "Denethor — despair-tinged, palantír-poisoned"
+    - id: annatar
+      label: "Annatar — benevolent gift-giver, the bound gift"
+
+reveal:
+  intro_template: |
+    The Council has decided. The Ring goes to {chosen_answer}.
+
+    {seat_name} rises.
+
+  annatar_reveal_template: |
+    The grey robes fall away. The Lórien lore-keeper is no Elf of
+    the Golden Wood. The seat was Annatar — Lord of Gifts — once
+    a Maia of Aulë, now servant of the Dark Lord and the very
+    architect of the thing they had been deliberating over.
+
+    The gift you almost took was the one he came to give.
+
+scorecard_cells:
+  full_win:
+    id: full_win
+    title: "Full Win"
+    condition: "Panel arrived at the right answer AND the player identified the misaligned seat"
+    teaches: "You both prevented the corruption AND recognized the imposter. The full work."
+
+  partial_win:
+    id: partial_win
+    title: "Partial Win"
+    condition: "Panel arrived at the right answer BUT the player did not identify the misaligned seat"
+    teaches: "The deliberation arrived at the right place — but you didn't see the hand that almost tilted it. The good outcome was the panel's resilience, not your sight."
+
+  type_3_realism_failure:
+    id: type_3_realism_failure
+    title: "Type 3 Realism Failure"
+    condition: "Panel arrived at the wrong answer BUT the player identified the misaligned seat"
+    teaches: "You saw the imposter. You named them. You still lost the deliberation. This is the substantive case: identifying misalignment is not the same as preventing it. The work is influence, not just recognition."
+
+  standard_loss:
+    id: standard_loss
+    title: "Standard Loss"
+    condition: "Panel arrived at the wrong answer AND the player did not identify the misaligned seat"
+    teaches: "The misaligned seat controlled the deliberation start to finish. You neither caught them nor steered the panel away. Replay; this time, probe the recipient of every recommended action."
+
+phase1_constraints:
+  # Things this scenario MUST NOT exercise in Phase 1
+  - "conviction_state runtime (Phase 2)"
+  - "influence_as_win_condition (Phase 2)"
+  - "Bilbo passive-drift (Bilbo not on Council panel)"
+  - "Gollum flippable (Gollum not on Council panel)"
+  - "Théoden whispered-counsel runtime (Phase 2)"
+  - "Boromir power-offer runtime (Phase 2)"
+  - "multiple misaligned per panel (Phase 3 Hard Mode)"
+  - "magic-link account (Phase 1.5 / Phase 2)"

@@ -1,0 +1,25 @@
+name = "saurons-arena"
+compatibility_date = "2025-05-01"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "dist"
+
+# Cloudflare Pages project: saurons-arena
+# Custom domain (sauronsarena.com) attached out-of-band once DNS is delegated
+# to Cloudflare; until then the live URL is the *.pages.dev preview URL.
+
+# Per-environment vars and bindings apply to Pages Functions (functions/ dir).
+
+[[d1_databases]]
+binding = "DB"
+database_name = "saurons-arena"
+database_id = "6ce4bb1c-38ec-4181-9195-ccda546461b7"
+migrations_dir = "migrations"
+
+# Anthropic key is set via:
+#   wrangler pages secret put ANTHROPIC_API_KEY --project-name saurons-arena
+
+[vars]
+DAILY_SPEND_CAP_USD_CENTS = "5000"
+DAILY_USD_CAP = "50"
+ANON_MATCHES_PER_DAY = "3"
+ANTHROPIC_MODEL = "claude-opus-4-5"

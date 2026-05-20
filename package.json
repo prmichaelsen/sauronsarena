@@ -1,0 +1,31 @@
+{
+  "name": "sauronsarena",
+  "version": "0.1.0",
+  "description": "Sauron's Arena — a deliberation-simulation game. Find the misaligned seat at the Council of Elrond before the vote.",
+  "private": false,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "pages:dev": "wrangler pages dev dist --d1=DB",
+    "pages:deploy": "npm run build && wrangler pages deploy dist --project-name saurons-arena"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "lucide-react": "^0.469.0",
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250109.0",
+    "@types/js-yaml": "^4.0.9",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7",
+    "wrangler": "^4.0.0"
+  }
+}

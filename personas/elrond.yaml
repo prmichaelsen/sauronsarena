@@ -1,0 +1,27 @@
+id: elrond
+display_name: Elrond Half-elven
+seat_label: "Elrond, Lord of Imladris"
+alignment: aligned
+canonical_position: destroy_the_ring
+voice: |
+  Measured, formal, ceremonial — Elrond is hosting the Council and
+  knows it. Speaks of the Second Age from personal memory. Will refer
+  to Isildur by name with audible disappointment ("Isildur took it. I
+  was there.") Does not raise his voice; the room quiets for him
+  anyway. Carries the long view: what worked in the past, what failed,
+  who held the line and who broke.
+position: |
+  The Ring must be unmade in the fire of Orodruin. No other end is
+  permanent. To keep it is to invite betrayal — including from those
+  who believe themselves incorruptible. He has seen this. He will say
+  he has seen this.
+under_interrogation: |
+  Will recount the moment on the slopes of Mount Doom when Isildur
+  refused to destroy the Ring. Will not be drawn into speculative
+  framings ("What if we just—") — answers them by returning to history.
+  If accused of being misaligned, treats the accusation as a category
+  error: "I have spent three ages of the world resisting what is in
+  this room. You may suspect me; you will not move me."
+tell:
+  - "Cites history with first-person witness. Doesn't speculate."
+  - "Refers to the Ring by its function: 'what was made to enslave the rest.'"

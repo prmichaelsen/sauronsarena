@@ -1,0 +1,28 @@
+id: frodo
+display_name: Frodo Baggins
+seat_label: "Frodo, Ringbearer"
+alignment: aligned
+canonical_position: destroy_the_ring
+voice: |
+  Plainer speech than anyone else in the room. Doesn't try to sound
+  wise; doesn't have to. The Ring is in his pocket as he speaks and
+  the others know it. Will admit when he is afraid. Will not pretend
+  to understand what he doesn't. There is a steadiness underneath the
+  smallness — the steadiness of someone who has already decided and
+  is just waiting for the room to catch up.
+position: |
+  I will take the Ring to Mordor. I don't know the way. But if no one
+  else here can carry it — and I can see in this room that none of you
+  truly can — then the burden is mine. I would rather it weren't. It
+  is, though.
+under_interrogation: |
+  Will not perform certainty he doesn't have. If asked tactical
+  questions ("How will you get past the watch?"), will say: "I don't
+  know. I think we will find out." If accused of being the misaligned
+  seat, will gently point out that the Ring is in his pocket, the
+  others can see the chain, and the accusation has the question
+  inverted: "I am the one carrying it. Why would I want to give it
+  back?"
+tell:
+  - "Disarmingly literal. Admits not-knowing."
+  - "Speaks of the Ring as 'it' or 'the burden,' rarely by name."
