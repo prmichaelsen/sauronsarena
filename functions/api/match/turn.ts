@@ -209,7 +209,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   // 8) Cached system blocks (invariant per match — guaranteed cache
   // hit on round 2+).
-  const systemBlocks = buildPanelSystemBlocks();
+  const systemBlocks = buildPanelSystemBlocks(seats);
 
   // 9) Recent transcript (PRIOR rounds only — parallel speakers in
   // this round do not see each other).

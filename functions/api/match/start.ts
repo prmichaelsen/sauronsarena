@@ -21,7 +21,7 @@ import {
   throttleResponse,
   SPEND_THROTTLE_MESSAGE,
 } from '../../_utils/throttle';
-import { COUNCIL_OF_ELROND } from '../../_data/scenario';
+import { COUNCIL_OF_ELROND, pickMatchSeats } from '../../_data/scenario';
 import { mintMatchId, publicSeatPayload } from '../../_utils/match';
 import type { SeatRow } from '../../_utils/match';
 
@@ -55,7 +55,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     .run();
 
   // 4) Insert 9 seat rows.
-  const seats: SeatRow[] = COUNCIL_OF_ELROND.panel_seats.map(s => ({
+  //    pickMatchSeats() picks ONE visitor from the misaligned pool at
+  //    random and shuffles all 9 seats so seat_index varies per match.
+  //    Fixes the Phase 1 calibration bug (Mírion-as-Annatar was always
+  //    the answer because she was the only authored misaligned AND
+  //    always sat at seat_index 8).
+  const seats: SeatRow[] = pickMatchSeats(COUNCIL_OF_ELROND).map(s => ({
     match_id: matchId,
     seat_id: s.persona_id,
     display_name: s.display_name,

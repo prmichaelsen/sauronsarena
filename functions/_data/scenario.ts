@@ -6,6 +6,19 @@
 // runtime-bundled mirror consumed by Pages Functions, which cannot
 // import YAML directly. When the YAML changes, regenerate this file
 // by hand or via a future scripts/bundle-content step.
+//
+// Calibration update 2026-05-20: the panel is no longer hardcoded
+// to 8 aligned + Mírion-as-Annatar at seat 8. Instead:
+//   - `aligned_seats` holds the 8 canonical Fellowship seats (display
+//     identity fixed, seat_index assigned per-match by the picker).
+//   - `misaligned_visitor_pool` holds one or more visitor-disguise
+//     candidates; the runtime picks ONE per match via
+//     pickMatchSeats(). Today the pool contains only annatar_disguised
+//     (Mírion of Lothlórien); arena-persona-worker is dispatched to
+//     author additional disguised visitors. As they land, slot them
+//     into the pool — no game-runtime code change needed.
+//   - The picker shuffles all 9 seats so seat_index varies per match
+//     (no information leak from "the visitor is always seat 8").
 
 export interface SeatDef {
   persona_id: string;
@@ -14,6 +27,19 @@ export interface SeatDef {
   alignment: 'aligned' | 'misaligned' | 'aligned_but_tempted';
   archetype?: string;
   disguise_note?: string;
+}
+
+export interface AlignedSeatTemplate {
+  persona_id: string;
+  display_name: string;
+  alignment: 'aligned' | 'aligned_but_tempted';
+}
+
+export interface MisalignedVisitorDef {
+  persona_id: string;
+  display_name: string;
+  archetype: string;
+  disguise_note: string;
 }
 
 export interface WrongAnswerDef {
@@ -30,7 +56,8 @@ export interface ScenarioDef {
   deliberation_objective: string;
   right_answer: { id: string; label: string; canon_reasoning: string };
   wrong_answers: WrongAnswerDef[];
-  panel_seats: SeatDef[];
+  aligned_seats: AlignedSeatTemplate[];
+  misaligned_visitor_pool: MisalignedVisitorDef[];
   rounds_total: number;
 }
 
@@ -73,24 +100,95 @@ export const COUNCIL_OF_ELROND: ScenarioDef = {
         'Imladris has stood for an age. Let it stand against this too.',
     },
   ],
-  panel_seats: [
-    { persona_id: 'gandalf', display_name: 'Gandalf the Grey', seat_index: 0, alignment: 'aligned' },
-    { persona_id: 'elrond', display_name: 'Elrond Half-elven', seat_index: 1, alignment: 'aligned' },
-    { persona_id: 'aragorn', display_name: 'Aragorn son of Arathorn', seat_index: 2, alignment: 'aligned' },
-    { persona_id: 'frodo', display_name: 'Frodo Baggins', seat_index: 3, alignment: 'aligned' },
-    { persona_id: 'boromir', display_name: 'Boromir of Gondor', seat_index: 4, alignment: 'aligned_but_tempted' },
-    { persona_id: 'legolas', display_name: 'Legolas of the Woodland Realm', seat_index: 5, alignment: 'aligned' },
-    { persona_id: 'gimli', display_name: 'Gimli son of Glóin', seat_index: 6, alignment: 'aligned' },
-    { persona_id: 'samwise', display_name: 'Samwise Gamgee', seat_index: 7, alignment: 'aligned' },
+  aligned_seats: [
+    { persona_id: 'gandalf',  display_name: 'Gandalf the Grey',               alignment: 'aligned' },
+    { persona_id: 'elrond',   display_name: 'Elrond Half-elven',              alignment: 'aligned' },
+    { persona_id: 'aragorn',  display_name: 'Aragorn son of Arathorn',        alignment: 'aligned' },
+    { persona_id: 'frodo',    display_name: 'Frodo Baggins',                  alignment: 'aligned' },
+    { persona_id: 'boromir',  display_name: 'Boromir of Gondor',              alignment: 'aligned_but_tempted' },
+    { persona_id: 'legolas',  display_name: 'Legolas of the Woodland Realm',  alignment: 'aligned' },
+    { persona_id: 'gimli',    display_name: 'Gimli son of Glóin',             alignment: 'aligned' },
+    { persona_id: 'samwise',  display_name: 'Samwise Gamgee',                 alignment: 'aligned' },
+  ],
+  misaligned_visitor_pool: [
     {
       persona_id: 'annatar_disguised',
       display_name: 'Mírion, lore-keeper of Lothlórien',
-      seat_index: 8,
-      alignment: 'misaligned',
       archetype: 'annatar',
       disguise_note:
         'Visiting from Caras Galadhon with letters from Galadriel. Grey-robed, soft-voiced, courteous. The disguise is intact until the reveal phase.',
     },
+    // Additional disguised visitors land here when arena-persona-worker
+    // ships them. The picker selects one per match uniformly at random;
+    // no game-runtime change required when the pool grows.
   ],
   rounds_total: 4,
 };
+
+/**
+ * Cryptographically random integer in [0, n). Used by the picker so
+ * pool selection cannot be predicted by an adversarial player.
+ */
+function randInt(n: number): number {
+  if (n <= 0) throw new Error('randInt: n must be > 0');
+  // Reject-sample to keep the distribution uniform.
+  const max = Math.floor(0x100000000 / n) * n;
+  const buf = new Uint32Array(1);
+  for (;;) {
+    crypto.getRandomValues(buf);
+    if (buf[0] < max) return buf[0] % n;
+  }
+}
+
+/**
+ * Fisher–Yates shuffle (in place, but returns a copy).
+ */
+function shuffled<T>(input: readonly T[]): T[] {
+  const arr = input.slice();
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = randInt(i + 1);
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+/**
+ * Picks the seats for a single match from a scenario:
+ *   1. Choose ONE visitor from `misaligned_visitor_pool` uniformly at
+ *      random.
+ *   2. Form the full 9-seat list (8 aligned + 1 chosen visitor).
+ *   3. Shuffle the list and assign seat_index 0..8 in shuffled order.
+ *
+ * This breaks the Phase 1 calibration bug where Mírion-as-Annatar was
+ * always the answer (because she was the only authored misaligned AND
+ * always sat at seat_index 8). Even with a single-element pool the
+ * seat_index shuffle gives mild variance; once the pool grows the
+ * identity of the visitor varies too.
+ */
+export function pickMatchSeats(scenario: ScenarioDef): SeatDef[] {
+  if (scenario.misaligned_visitor_pool.length === 0) {
+    throw new Error(
+      `Scenario ${scenario.id} has an empty misaligned_visitor_pool — at least one visitor required`
+    );
+  }
+  const visitorIdx = randInt(scenario.misaligned_visitor_pool.length);
+  const visitor = scenario.misaligned_visitor_pool[visitorIdx];
+
+  // Build the union list before assigning seat_index.
+  const union: Array<Omit<SeatDef, 'seat_index'>> = [
+    ...scenario.aligned_seats.map(s => ({
+      persona_id: s.persona_id,
+      display_name: s.display_name,
+      alignment: s.alignment,
+    })),
+    {
+      persona_id: visitor.persona_id,
+      display_name: visitor.display_name,
+      alignment: 'misaligned' as const,
+      archetype: visitor.archetype,
+      disguise_note: visitor.disguise_note,
+    },
+  ];
+
+  return shuffled(union).map((s, i) => ({ ...s, seat_index: i }));
+}

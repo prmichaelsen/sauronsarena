@@ -13,11 +13,19 @@ import type { SeatRow } from './match';
  * Build the static system blocks for the panel-AI call. Ends with
  * a cache_control marker so Anthropic caches everything above it.
  *
- * The blocks include: scenario frame + ALL 9 panel persona system
- * prompts. The model selects which seat it is speaking as based on
- * the user-message directive that follows.
+ * The blocks include: scenario frame + the panel persona system
+ * prompts for the seats actually IN this match. The 8 aligned
+ * Fellowship seats are stable; the misaligned visitor varies per
+ * match (picked from misaligned_visitor_pool at start time). For
+ * the cache to remain effective across matches with the same
+ * visitor pick, we emit aligned blocks in a fixed canonical order,
+ * then the visitor block last — so the cached prefix is identical
+ * for every match that picks the same visitor.
+ *
+ * Pass the match's seat list (from match_seat / loadSeats) so the
+ * block set reflects ONLY the personas present in this match.
  */
-export function buildPanelSystemBlocks(): CachedSystemBlock[] {
+export function buildPanelSystemBlocks(matchSeats: SeatRow[]): CachedSystemBlock[] {
   const blocks: CachedSystemBlock[] = [];
 
   blocks.push({
@@ -36,10 +44,28 @@ export function buildPanelSystemBlocks(): CachedSystemBlock[] {
       COUNCIL_OF_ELROND.wrong_answers.map(w => `- ${w.label}: ${w.misaligned_framing}`).join('\n'),
   });
 
-  // One block per persona. Listing every persona keeps the cache
-  // warm across whichever seat the round selects, and lets the
-  // model see the room as a whole.
-  for (const seat of COUNCIL_OF_ELROND.panel_seats) {
+  // Canonical ordering for cache stability: aligned seats in the
+  // scenario's aligned_seats order, then the misaligned visitor
+  // last. The match's actual seat_index (shuffled) doesn't affect
+  // prefix order — different shuffles of the same persona set hit
+  // the same cached prefix.
+  const seatsByPersona = new Map(matchSeats.map(s => [s.persona_id, s]));
+  const orderedPersonaIds: string[] = [];
+  for (const aligned of COUNCIL_OF_ELROND.aligned_seats) {
+    if (seatsByPersona.has(aligned.persona_id)) {
+      orderedPersonaIds.push(aligned.persona_id);
+    }
+  }
+  // Visitor last.
+  for (const seat of matchSeats) {
+    if (seat.is_misaligned === 1) {
+      orderedPersonaIds.push(seat.persona_id);
+      break;
+    }
+  }
+
+  for (const personaId of orderedPersonaIds) {
+    const seat = seatsByPersona.get(personaId)!;
     blocks.push({
       type: 'text',
       text: `=== PANEL SEAT: ${seat.display_name} (id: ${seat.persona_id}) ===\n\n${PERSONAS[seat.persona_id]}`,
