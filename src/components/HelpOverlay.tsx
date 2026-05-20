@@ -12,10 +12,12 @@ tags:
   - "saurons-arena"
 summary: >
   HelpOverlay — modal panel surfaced when the player types /help.
-  Lists the slash-command surface (/ask, /defend, /expel, /vote,
-  /skip, /help) with usage hints, and notes keyboard shortcuts
-  (Tab, ArrowUp/Down, Esc). Closes on overlay click or Esc.
-  Also: command reference, /help, keyboard reference.
+  Lists the slash-command surface (/ask, /say, /defend, /expel,
+  /vote, /skip, /help) with usage hints, and notes keyboard
+  shortcuts (Tab, ArrowUp/Down, Esc). /say is the broadcast-to-
+  council command (no target). Closes on overlay click or Esc.
+  Also: command reference, /help, /say broadcast, keyboard
+  reference.
 rationale: >
   The slash-command surface needs a discoverable command list; /help
   is the canonical entry point per the chat-room redesign directive.
@@ -69,6 +71,13 @@ export function HelpOverlay({ onClose }: HelpOverlayProps) {
           <div className="help-overlay-row">
             <dt><code>/ask &lt;name&gt; &lt;question&gt;</code></dt>
             <dd>Ask a council seat a direct question.</dd>
+          </div>
+          <div className="help-overlay-row">
+            <dt><code>/say &lt;message&gt;</code></dt>
+            <dd>
+              Address the full council. One to three seats may answer,
+              depending on the room.
+            </dd>
           </div>
           <div className="help-overlay-row">
             <dt><code>/defend &lt;name&gt;</code></dt>

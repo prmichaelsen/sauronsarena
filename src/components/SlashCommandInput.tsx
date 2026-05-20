@@ -16,13 +16,15 @@ summary: >
   SlashCommandInput — the player's primary interaction surface for
   Sauron's Arena (chat-room redesign 2026-05-20). Single text input
   at the bottom of the screen, Discord/Slack-style. Parses slash
-  commands /ask /defend /expel /vote /skip /help and resolves them
-  to Intervention payloads or a CALL_VOTE-then-vote chain. Tab
-  completes character names from the seat roster. Up/Down arrows
-  recall history. Esc clears. Enter submits. Replaces the old
-  click-driven InterventionPanel surface. Also: chat input,
-  command bar, /ask /defend /expel /vote /help, tab completion,
-  command history, keyboard-first, slash parser.
+  commands /ask /say /defend /expel /vote /skip /help and resolves
+  them to Intervention payloads or a CALL_VOTE-then-vote chain.
+  /say is the broadcast-to-council command (no target; 1–3
+  characters respond organically). Tab completes character names
+  from the seat roster. Up/Down arrows recall history. Esc clears.
+  Enter submits. Replaces the old click-driven InterventionPanel
+  surface. Also: chat input, command bar, /ask /say /defend
+  /expel /vote /help, broadcast command, tab completion, command
+  history, keyboard-first, slash parser.
 rationale: >
   The originator's first live playthrough revealed click-driven
   interventions break reading flow and waste screen real estate.
@@ -168,6 +170,23 @@ function parseCommand(
     };
   }
 
+  if (verb === 'say') {
+    // /say <message> — broadcast to the full council. No target seat;
+    // the game engine selects 1–3 responders organically.
+    if (!rest) {
+      return {
+        kind: 'error',
+        message:
+          '/say requires a message. Try /say <what you want the council to hear>.',
+      };
+    }
+    return {
+      kind: 'intervention',
+      intervention: { kind: 'SAY', prompt: rest },
+      echo: `/say ${rest}`,
+    };
+  }
+
   if (verb === 'ask' || verb === 'defend' || verb === 'expel') {
     // /ask <name> <question?>, /defend <name>, /expel <name>
     if (!rest) {
@@ -259,7 +278,7 @@ function completeAt(
   const firstSpace = body.indexOf(' ');
   if (firstSpace === -1) {
     // Completing the verb itself
-    const verbs = ['ask', 'defend', 'expel', 'vote', 'skip', 'help'];
+    const verbs = ['ask', 'say', 'defend', 'expel', 'vote', 'skip', 'help'];
     const prefix = body.toLowerCase();
     const matches = verbs.filter((v) => v.startsWith(prefix));
     if (matches.length === 0) return null;
@@ -406,7 +425,7 @@ export function SlashCommandInput({
   const placeholder =
     phase === 'voting'
       ? 'Vote by clicking a seat on the map, or arrow keys + Enter.'
-      : 'Type a command (e.g. /ask gandalf why destroy it?). /help for list.';
+      : 'Type a command (e.g. /ask gandalf why? — or /say to address the council). /help for list.';
 
   return (
     <form

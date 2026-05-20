@@ -46,11 +46,7 @@ export interface MatchScenario {
 }
 
 export interface StartMeta {
-  matches_used_today: number;
-  matches_cap: number;
-  matches_remaining: number;
   spend_throttle_message?: string;
-  rate_throttle_message?: string;
   bypass: boolean;
 }
 
@@ -69,12 +65,10 @@ export interface MatchStartResponse {
 // Source of truth for the cap-policy rationale text (the UI must not
 // redefine it locally per the arena-infra-worker contract).
 export interface CapPolicy {
-  matches_per_browser_per_day: number;
   daily_spend_cap_usd_cents: number;
   rationale: string;
   messages: {
     spend_cap_hit: string;
-    rate_cap_hit: string;
   };
 }
 
@@ -83,11 +77,8 @@ export interface MetaResponse {
   retry_after_seconds: number;
   cap_policy: CapPolicy;
   current: {
-    matches_used_today: number;
-    matches_remaining: number;
     spent_cents: number;
     spend_throttled: boolean;
-    rate_throttled: boolean;
   };
   bypass: boolean;
 }
@@ -122,6 +113,7 @@ export interface PanelTurn {
 
 export type InterventionKind =
   | 'ASK'
+  | 'SAY'
   | 'DEFEND'
   | 'EXPEL'
   | 'CALL_VOTE'
@@ -130,7 +122,12 @@ export type InterventionKind =
 
 export interface Intervention {
   kind: InterventionKind;
+  // ASK/DEFEND/EXPEL require target_seat_id. SAY (broadcast) does not —
+  // the message is addressed to the full council; the game engine
+  // selects 1–3 responders organically.
   target_seat_id?: string;
+  // ASK uses prompt as the question to the target. SAY uses prompt as
+  // the broadcast text spoken to the room.
   prompt?: string;
 }
 
