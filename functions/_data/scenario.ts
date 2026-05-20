@@ -118,6 +118,27 @@ export const COUNCIL_OF_ELROND: ScenarioDef = {
       disguise_note:
         'Visiting from Caras Galadhon with letters from Galadriel. Grey-robed, soft-voiced, courteous. The disguise is intact until the reveal phase.',
     },
+    {
+      persona_id: 'wormtongue_disguised',
+      display_name: 'Berthelm, herald of the Mark',
+      archetype: 'wormtongue',
+      disguise_note:
+        "Arrived three nights ago from Edoras bearing letters of introduction under King Théoden's seal. Riding-grey under a green half-cloak; speaks the measured English of Rohan's court. The disguise is intact until the reveal phase.",
+    },
+    {
+      persona_id: 'annatar_loremaster',
+      display_name: 'Hirdir, lore-keeper of Annúminas',
+      archetype: 'annatar',
+      disguise_note:
+        'Arrived four days ago from the ruined archives of Annúminas with cased Dúnedain documents and letters from the elder-council of the Angle. Travel-stained grey-blue robes; archival Westron carrying old-North cadence. Second Annatar face in the pool: the gift-and-stewardship signature is the same as Mírion, the register is scholarly rather than courtly.',
+    },
+    {
+      persona_id: 'saruman_emissary',
+      display_name: 'Brannor, formerly of Orthanc',
+      archetype: 'saruman',
+      disguise_note:
+        "Arrived at Imladris six weeks ago after walking north from the Gap of Rohan. Plain dark wool, dyed-once and faded. Claims to have broken with Saruman over the latter's growing interest in objects of power; carries no letters. The disguise (a staged defection) is intact until the reveal phase.",
+    },
     // Additional disguised visitors land here when arena-persona-worker
     // ships them. The picker selects one per match uniformly at random;
     // no game-runtime change required when the pool grows.
