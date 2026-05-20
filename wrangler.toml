@@ -21,5 +21,4 @@ migrations_dir = "migrations"
 [vars]
 DAILY_SPEND_CAP_USD_CENTS = "5000"
 DAILY_USD_CAP = "50"
-ANON_MATCHES_PER_DAY = "3"
 ANTHROPIC_MODEL = "claude-opus-4-5"

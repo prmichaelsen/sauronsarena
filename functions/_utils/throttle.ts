@@ -1,12 +1,17 @@
 // functions/_utils/throttle.ts
-// Spend-cap + per-browser-per-day rate limit + spend bookkeeping.
+// System-level $50/day spend cap + spend bookkeeping.
+//
+// As of 2026-05-20 (originator directive 2026-05-20T11-06-06Z) the
+// per-user / per-browser daily cap has been REMOVED entirely (not
+// bypassed — removed). Anyone can play unlimited matches. The
+// $50/day system-level Anthropic-spend cap is the sole ceiling.
+// When the system cap is hit, ALL users see SPEND_THROTTLE_MESSAGE
+// until midnight UTC.
 //
 // Admin/dev bypass: when `isAdmin: true` is passed, throttleState
-// returns both throttled bits as false regardless of underlying
-// counters. The actual spent/matches counters are still reported so
-// the admin UI can show "you're past the cap but bypassed". Admin
-// calls also skip incrementMatchCount (caller's responsibility) so
-// originator iteration doesn't burn the anon-user budget.
+// returns `spend_throttled: false` regardless of the underlying
+// counter. The raw spent_cents is still reported so the admin UI
+// can show "you're past the cap but bypassed".
 
 import type { Env } from './env';
 import { todayUTC, secondsToMidnightUTC } from './env';
@@ -14,10 +19,7 @@ import { todayUTC, secondsToMidnightUTC } from './env';
 export interface ThrottleState {
   spent_cents: number;
   cap_cents: number;
-  matches_today: number;
-  matches_cap: number;
   spend_throttled: boolean;
-  rate_throttled: boolean;
   is_admin: boolean;
 }
 
@@ -29,30 +31,16 @@ export async function readSpentCents(env: Env): Promise<number> {
   return row?.usd_cents ?? 0;
 }
 
-export async function readMatchesToday(env: Env, browserId: string): Promise<number> {
-  const row = await env.DB
-    .prepare('SELECT matches FROM anon_match_count WHERE browser_id = ? AND day = ?')
-    .bind(browserId, todayUTC())
-    .first<{ matches: number }>();
-  return row?.matches ?? 0;
-}
-
 export async function throttleState(
   env: Env,
-  browserId: string | null,
   isAdmin: boolean = false,
 ): Promise<ThrottleState> {
   const cap_cents = Number(env.DAILY_SPEND_CAP_USD_CENTS ?? '5000');
-  const matches_cap = Number(env.ANON_MATCHES_PER_DAY ?? '3');
   const spent_cents = await readSpentCents(env);
-  const matches_today = browserId ? await readMatchesToday(env, browserId) : 0;
   return {
     spent_cents,
     cap_cents,
-    matches_today,
-    matches_cap,
     spend_throttled: !isAdmin && spent_cents >= cap_cents,
-    rate_throttled: !isAdmin && matches_today >= matches_cap,
     is_admin: isAdmin,
   };
 }
@@ -68,10 +56,10 @@ export function throttleResponse(message: string): Response {
   );
 }
 
+// System-level "budget reached" message. Fires for ALL users when
+// the $50/day system cap is exhausted. Resets at midnight UTC.
 export const SPEND_THROTTLE_MESSAGE =
-  "Sauron has retreated to recover his strength — try again in a few hours.";
-export const RATE_THROTTLE_MESSAGE =
-  "You have reached the Council's patience for the day. Return on the morrow.";
+  "Today's compute budget has been reached. The Council reconvenes tomorrow.";
 
 export async function recordSpend(env: Env, delta_cents: number): Promise<void> {
   if (delta_cents <= 0) return;
@@ -85,17 +73,5 @@ export async function recordSpend(env: Env, delta_cents: number): Promise<void> 
         updated_at = datetime('now')
     `)
     .bind(day, delta_cents)
-    .run();
-}
-
-export async function incrementMatchCount(env: Env, browserId: string): Promise<void> {
-  const day = todayUTC();
-  await env.DB
-    .prepare(`
-      INSERT INTO anon_match_count (browser_id, day, matches)
-      VALUES (?, ?, 1)
-      ON CONFLICT(browser_id, day) DO UPDATE SET matches = matches + 1
-    `)
-    .bind(browserId, day)
     .run();
 }

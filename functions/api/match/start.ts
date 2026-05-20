@@ -1,8 +1,13 @@
 // functions/api/match/start.ts
 // POST /api/match/start
 // Provisions a new match: sets browser_id cookie (if absent), checks
-// rate + spend caps, inserts the match + 9 seats, returns the public
-// payload (with archetype/is_misaligned masked).
+// the system-level spend cap, inserts the match + 9 seats, returns
+// the public payload (with archetype/is_misaligned masked).
+//
+// As of 2026-05-20 there is NO per-user / per-browser match cap.
+// Anyone can start as many matches as they want; the only ceiling
+// is the system-level $50/day Anthropic-spend cap, which short-
+// circuits ALL matches once exhausted (resets at midnight UTC).
 
 import type { Env } from '../../_utils/env';
 import {
@@ -15,15 +20,15 @@ import {
   throttleState,
   throttleResponse,
   SPEND_THROTTLE_MESSAGE,
-  RATE_THROTTLE_MESSAGE,
-  incrementMatchCount,
 } from '../../_utils/throttle';
 import { COUNCIL_OF_ELROND } from '../../_data/scenario';
 import { mintMatchId, publicSeatPayload } from '../../_utils/match';
 import type { SeatRow } from '../../_utils/match';
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
-  // 1) Browser id (set cookie if not present).
+  // 1) Browser id (set cookie if not present). Still issued because
+  //    the match row stores player_browser_id for audit; not used
+  //    for any rate-limit decision.
   let browserId = readBrowserId(request);
   const newCookie = !browserId;
   if (!browserId) browserId = mintBrowserId();
@@ -31,15 +36,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   // 1b) Admin/dev bypass — originator iteration loop.
   const admin = resolveAdmin(request, env.ADMIN_DEV_TOKEN);
 
-  // 2) Throttle pre-check (spend + rate). Admin requests skip both.
-  const t = await throttleState(env, browserId, admin.isAdmin);
+  // 2) System-level spend pre-check. Admin requests skip it.
+  const t = await throttleState(env, admin.isAdmin);
   if (t.spend_throttled) {
     const r = throttleResponse(SPEND_THROTTLE_MESSAGE);
-    if (newCookie) r.headers.append('Set-Cookie', setBrowserIdHeader(browserId));
-    return r;
-  }
-  if (t.rate_throttled) {
-    const r = throttleResponse(RATE_THROTTLE_MESSAGE);
     if (newCookie) r.headers.append('Set-Cookie', setBrowserIdHeader(browserId));
     return r;
   }
@@ -85,20 +85,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       .run();
   }
 
-  // 5) Bump per-browser-per-day count. Admin requests skip this so
-  //    the originator's iteration doesn't burn the anon-user cap
-  //    counter for whatever browser_id they happen to be on.
-  if (!admin.isAdmin) {
-    await incrementMatchCount(env, browserId);
-  }
-
-  // 6) Compute matches_remaining for the meta surface. After
-  //    incrementing (when non-admin), matches_today is t.matches_today
-  //    + 1. For admin, we show the raw count but `bypass: true`.
-  const matchesUsedAfter = admin.isAdmin ? t.matches_today : t.matches_today + 1;
-  const matchesRemaining = Math.max(0, t.matches_cap - matchesUsedAfter);
-
-  // 7) Return masked payload + meta block.
+  // 5) Return masked payload + minimal meta block (system-cap only).
   const payload = {
     match_id: matchId,
     scenario: {
@@ -115,11 +102,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     current_round: 0,
     status: 'active',
     meta: {
-      matches_used_today: matchesUsedAfter,
-      matches_cap: t.matches_cap,
-      matches_remaining: matchesRemaining,
       spend_throttle_message: SPEND_THROTTLE_MESSAGE,
-      rate_throttle_message: RATE_THROTTLE_MESSAGE,
       bypass: admin.isAdmin,
     },
   };

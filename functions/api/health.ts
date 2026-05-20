@@ -1,14 +1,13 @@
 // functions/api/health.ts
-// Liveness probe + spend-cap status for Phase 1 MVP.
+// Liveness probe + system-level spend-cap status.
 //
-// arena-game-worker will add the actual match / panel / turn endpoints
-// under functions/api/. This file proves the Functions runtime is wired
-// to D1 and the env vars from wrangler.toml.
+// As of 2026-05-20 there is no per-user / per-browser match cap. The
+// only daily ceiling is the system-level Anthropic-spend cap reported
+// here.
 
 interface Env {
   DB: D1Database;
   DAILY_SPEND_CAP_USD_CENTS: string;
-  ANON_MATCHES_PER_DAY: string;
   ANTHROPIC_MODEL: string;
   ANTHROPIC_API_KEY?: string;
 }
@@ -40,11 +39,10 @@ export const onRequest: PagesFunction<Env> = async ({ env }) => {
     cap_cents,
     throttled,
     throttle_message: throttled
-      ? 'Sauron has retreated to recover his strength — try again tomorrow.'
+      ? "Today's compute budget has been reached. The Council reconvenes tomorrow."
       : null,
     d1_ok,
     has_anthropic_key,
     anthropic_model: env.ANTHROPIC_MODEL ?? null,
-    anon_matches_per_day: Number(env.ANON_MATCHES_PER_DAY ?? '3'),
   });
 };

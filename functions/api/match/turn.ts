@@ -99,10 +99,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return Response.json({ error: 'invalid_request' }, { status: 400 });
   }
 
-  // 2) Spend pre-check (redundant with middleware, but defensive).
-  //    Admin/dev requests skip the cap.
+  // 2) System-level spend pre-check (redundant with middleware, but
+  //    defensive). Admin/dev requests skip the cap.
   const admin = resolveAdmin(request, env.ADMIN_DEV_TOKEN);
-  const t = await throttleState(env, null, admin.isAdmin);
+  const t = await throttleState(env, admin.isAdmin);
   if (t.spend_throttled) {
     return throttleResponse(SPEND_THROTTLE_MESSAGE);
   }

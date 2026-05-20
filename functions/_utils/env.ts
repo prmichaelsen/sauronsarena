@@ -5,14 +5,12 @@ export interface Env {
   DB: D1Database;
   DAILY_SPEND_CAP_USD_CENTS: string;
   DAILY_USD_CAP: string;
-  ANON_MATCHES_PER_DAY: string;
   ANTHROPIC_MODEL: string;
   ANTHROPIC_API_KEY?: string;
   // Set via `wrangler pages secret put ADMIN_DEV_TOKEN`. When a
   // request presents this token (via `?dev=<token>` query param or
-  // `sa_dev` cookie), per-user and spend caps are bypassed. Used by
-  // the originator to iterate on game design without hitting the
-  // cap. Absent on prod by default = no bypass possible.
+  // `sa_dev` cookie), the system-level spend cap is bypassed for
+  // originator iteration. Absent on prod by default = no bypass.
   ADMIN_DEV_TOKEN?: string;
 }
 
