@@ -126,8 +126,28 @@ export function App() {
     };
   }, []);
 
+  // Refocus the chat input after any modal closes so the keyboard-only
+  // flow keeps working — Esc on /help (or the policy modal) should
+  // return the cursor to the chat input, not strand it on body. The
+  // input exposes id="chat-input"; getElementById no-ops in the lobby
+  // where the input is not mounted, which is the correct behavior.
+  const refocusChatInput = useCallback(() => {
+    // queueMicrotask so React finishes unmounting the modal (and
+    // releases any focus trap) before we re-focus.
+    queueMicrotask(() => {
+      document.getElementById('chat-input')?.focus();
+    });
+  }, []);
+
   const openPolicy = useCallback(() => setPolicyOpen(true), []);
-  const closePolicy = useCallback(() => setPolicyOpen(false), []);
+  const closePolicy = useCallback(() => {
+    setPolicyOpen(false);
+    refocusChatInput();
+  }, [refocusChatInput]);
+  const closeHelp = useCallback(() => {
+    setHelpOpen(false);
+    refocusChatInput();
+  }, [refocusChatInput]);
 
   // Display transient error/info echoes briefly in the dialogue feed.
   useEffect(() => {
@@ -523,7 +543,7 @@ export function App() {
         onSubmit={handleSlashSubmit}
       />
 
-      {helpOpen && <HelpOverlay onClose={() => setHelpOpen(false)} />}
+      {helpOpen && <HelpOverlay onClose={closeHelp} />}
       {policyOpen && <CapPolicyModal meta={meta} onClose={closePolicy} />}
 
       {error && <p className="chatroom-error">{error}</p>}

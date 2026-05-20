@@ -440,6 +440,7 @@ export function SlashCommandInput({
         <div className="slash-input-field">
           <input
             ref={inputRef}
+            id="chat-input"
             type="text"
             className="slash-input-text"
             placeholder={placeholder}
