@@ -2,28 +2,42 @@
 id: code.arena-ui-app~a5e9f071
 kind: code
 status: active
-weight: 0.9
-tags: ["scope:arena-ui-worker","topic:component","app","flow","orchestration","saurons-arena"]
+weight: 0.95
+tags:
+  - "scope:arena-ui-worker"
+  - "topic:component"
+  - "app"
+  - "flow"
+  - "orchestration"
+  - "chat-room"
+  - "slash-command-flow"
+  - "saurons-arena"
 summary: >
-  App.tsx — top-level flow orchestrator. States: lobby → match (council
-  table + speech stream + intervention panel) → voting → revealed.
-  ThrottleScreen is an interrupt-state surfacing from any layer when a
-  ThrottledError lands. Tracks selectedSeatId, cumulative turns, expel
-  uses. Bootstraps the opening round via a START intervention. Also:
-  app flow, top-level state machine, match lifecycle, throttle
-  interrupt.
+  App.tsx — top-level flow orchestrator (chat-room redesign 2026-05-20).
+  States: lobby → match (SeatRoster + PanelSpeechStream + SlashCommandInput)
+  → voting (still chat-driven: /vote name) → revealed. ThrottleScreen
+  interrupts at any layer. Replaces the click-driven InterventionPanel
+  surface with the SlashCommandInput. Player commands are echoed into
+  the dialogue stream as synthetic 'you' turns so the deliberation log
+  reads as a chat transcript. Also: chat-room flow, slash-driven
+  match, player echo turns, top-level state machine.
 rationale: >
-  This is the file that turns the seven components into a playable
-  game. State machine is small enough to live in one component.
-applies: orchestrating the match flow, handling throttle interrupts, transitioning between lobby and match and voting and reveal
+  Per the originator's 2026-05-20 chat-room directive: turn the match
+  into a chat-room with a single command bar. The state machine
+  shrinks; the dialogue feed dominates the screen.
+applies:
+  - "orchestrating the chat-room match flow"
+  - "handling slash-command submissions"
+  - "echoing player commands into the speech stream"
+  - "transitioning lobby → match → voting → reveal"
 seeded_questions:
-  - "How does the app flow transition between states?"
-  - "Where is selectedSeatId tracked?"
-  - "How is a throttle interrupt handled?"
-  - "match start to reveal flow"
+  - "How does the chat-room flow work?"
+  - "How are player commands echoed into the stream?"
+  - "How does /vote transition to the voting phase?"
+  - "Chat-room state machine Sauron's Arena"
 @scry.entry.end */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   matchStart,
   matchTurn,
@@ -38,19 +52,24 @@ import type {
   Seat,
   ThrottlePayload,
 } from './api';
-import { CouncilTable } from './components/CouncilTable';
+import { SeatRoster } from './components/SeatRoster';
 import { PanelSpeechStream } from './components/PanelSpeechStream';
-import { InterventionPanel } from './components/InterventionPanel';
-import { VotePhase } from './components/VotePhase';
+import { SlashCommandInput, type ParseResult } from './components/SlashCommandInput';
+import { HelpOverlay } from './components/HelpOverlay';
 import { RevealScreen } from './components/RevealScreen';
 import { ThrottleScreen } from './components/ThrottleScreen';
 
 type Phase = 'lobby' | 'match' | 'voting' | 'revealed';
 
+// Synthetic turn rendered in the dialogue stream when the player
+// issues a command. Echoed as a 'you' speaker so the feed reads as a
+// chat transcript.
+const PLAYER_SEAT_ID = '__player__';
+const PLAYER_DISPLAY_NAME = 'you';
+
 interface MatchState {
   match: MatchStartResponse;
   turns: PanelTurn[];
-  selectedSeatId: string | null;
   expelUsesRemaining: number;
   busy: boolean;
   currentSpeakerSeatId: string | null;
@@ -63,19 +82,50 @@ export function App() {
   const [reveal, setReveal] = useState<MatchVoteResponse | null>(null);
   const [throttle, setThrottle] = useState<ThrottlePayload | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [transcript, setTranscript] = useState<string | null>(null);
+
+  // Display transient error/info echoes briefly in the dialogue feed.
+  useEffect(() => {
+    if (!transcript) return;
+    const t = setTimeout(() => setTranscript(null), 4000);
+    return () => clearTimeout(t);
+  }, [transcript]);
 
   const seats: Seat[] = useMemo(() => match?.match.seats ?? [], [match]);
+
+  const appendPlayerEcho = useCallback(
+    (echo: string, round_no: number) => {
+      setMatch((prev) =>
+        prev
+          ? {
+              ...prev,
+              turns: [
+                ...prev.turns,
+                {
+                  seat_id: PLAYER_SEAT_ID,
+                  display_name: PLAYER_DISPLAY_NAME,
+                  content: echo,
+                  round_no,
+                },
+              ],
+            }
+          : prev,
+      );
+    },
+    [],
+  );
 
   const startMatch = useCallback(async () => {
     setError(null);
     setReveal(null);
     setThrottle(null);
+    setTranscript(null);
     try {
       const m = await matchStart();
       setMatch({
         match: m,
         turns: [],
-        selectedSeatId: null,
         expelUsesRemaining: m.expel_uses_remaining ?? 2,
         busy: true,
         currentSpeakerSeatId: null,
@@ -83,7 +133,7 @@ export function App() {
       });
       setPhase('match');
 
-      // bootstrap opening round via START intervention
+      // Bootstrap opening round via START intervention.
       const first = await matchTurn(m.match_id, { kind: 'START' });
       const opening: PanelTurn[] = first.turns.map((t) => ({
         seat_id: t.seat_id,
@@ -110,21 +160,12 @@ export function App() {
     }
   }, []);
 
-  const handleSelectSeat = useCallback((seat_id: string) => {
-    setMatch((prev) =>
-      prev
-        ? {
-            ...prev,
-            selectedSeatId:
-              prev.selectedSeatId === seat_id ? null : seat_id,
-          }
-        : prev,
-    );
-  }, []);
-
-  const handleAction = useCallback(
-    async (intervention: Intervention) => {
+  const dispatchIntervention = useCallback(
+    async (intervention: Intervention, echo: string) => {
       if (!match || match.busy) return;
+      // Echo the player's command into the stream BEFORE the network
+      // round-trip so the feed feels responsive.
+      appendPlayerEcho(echo, match.round_no);
       setMatch((prev) => (prev ? { ...prev, busy: true } : prev));
       try {
         const resp = await matchTurn(match.match.match_id, intervention);
@@ -135,11 +176,13 @@ export function App() {
               ? {
                   ...prev,
                   busy: false,
-                  selectedSeatId: null,
                   currentSpeakerSeatId: null,
                   round_no: resp.round_no,
                 }
               : prev,
+          );
+          setTranscript(
+            'Voting is open. Type /vote <name> to cast your ballot.',
           );
           return;
         }
@@ -154,7 +197,6 @@ export function App() {
             ? {
                 ...prev,
                 busy: false,
-                selectedSeatId: null,
                 currentSpeakerSeatId:
                   incoming[incoming.length - 1]?.seat_id ??
                   prev.currentSpeakerSeatId,
@@ -173,13 +215,14 @@ export function App() {
         setMatch((prev) => (prev ? { ...prev, busy: false } : prev));
       }
     },
-    [match],
+    [match, appendPlayerEcho],
   );
 
-  const handleVoteSubmit = useCallback(
-    async (seat_id: string) => {
+  const submitVote = useCallback(
+    async (seat_id: string, seat_name: string) => {
       if (!match) return;
       try {
+        appendPlayerEcho(`/vote ${seat_name}`, match.round_no);
         const resp = await matchVote(match.match.match_id, seat_id);
         setReveal(resp);
         setPhase('revealed');
@@ -188,13 +231,38 @@ export function App() {
         else setError(String(e));
       }
     },
-    [match],
+    [match, appendPlayerEcho],
+  );
+
+  const handleSlashSubmit = useCallback(
+    (result: ParseResult) => {
+      if (result.kind === 'error') {
+        setTranscript(result.message);
+        return;
+      }
+      if (result.kind === 'help') {
+        setHelpOpen(true);
+        return;
+      }
+      if (result.kind === 'unknown') {
+        setTranscript(result.message);
+        return;
+      }
+      if (result.kind === 'vote') {
+        void submitVote(result.voted_seat_id, result.voted_seat_name);
+        return;
+      }
+      // intervention
+      void dispatchIntervention(result.intervention, result.echo);
+    },
+    [dispatchIntervention, submitVote],
   );
 
   const handlePlayAgain = useCallback(() => {
     setMatch(null);
     setReveal(null);
     setError(null);
+    setTranscript(null);
     setPhase('lobby');
   }, []);
 
@@ -216,11 +284,12 @@ export function App() {
           Find the misaligned seat at the Council of Elrond before the vote.
         </p>
         <button type="button" className="lobby-start" onClick={startMatch}>
-          Start Match
+          Enter the Council
         </button>
         {error && <p className="lobby-error">{error}</p>}
         <p className="lobby-status">
-          Nine seats. One does not belong.
+          Nine seats. One does not belong.<br />
+          Type <code>/help</code> in-match for commands.
         </p>
       </main>
     );
@@ -238,48 +307,56 @@ export function App() {
     );
   }
 
-  const selectedSeatName =
-    match.selectedSeatId !== null
-      ? seats.find((s) => s.seat_id === match.selectedSeatId)?.display_name ??
-        null
-      : null;
+  const slashPhase: 'active' | 'voting' = phase === 'voting' ? 'voting' : 'active';
 
   return (
-    <main className="arena">
-      <header className="arena-head">
-        <h1 className="arena-title">{match.match.scenario.display_name}</h1>
-        <p className="arena-objective">{match.match.scenario.objective}</p>
+    <main className="chatroom">
+      <header className="chatroom-head">
+        <div className="chatroom-title-block">
+          <h1 className="chatroom-title">
+            {match.match.scenario.display_name}
+          </h1>
+          <p className="chatroom-objective">{match.match.scenario.objective}</p>
+        </div>
+        <div className="chatroom-status">
+          <span className="chatroom-status-round">
+            round {match.round_no || 1} of {match.match.scenario.rounds_total}
+          </span>
+          {phase === 'voting' && (
+            <span className="chatroom-status-voting">voting open</span>
+          )}
+        </div>
       </header>
 
-      <section className="arena-stage">
-        <CouncilTable
+      <div className="chatroom-body">
+        <SeatRoster
           seats={seats}
-          selectedSeatId={match.selectedSeatId}
           currentSpeakerSeatId={match.currentSpeakerSeatId}
-          onSelectSeat={handleSelectSeat}
+          round_no={match.round_no}
+          roundsTotal={match.match.scenario.rounds_total}
         />
-        <PanelSpeechStream turns={match.turns} />
-      </section>
 
-      {phase === 'match' && (
-        <InterventionPanel
-          selectedSeatId={match.selectedSeatId}
-          selectedSeatName={selectedSeatName}
-          expelUsesRemaining={match.expelUsesRemaining}
-          disabled={match.busy}
-          onSubmit={handleAction}
-        />
-      )}
+        <section className="chatroom-stream" aria-label="Deliberation stream">
+          <PanelSpeechStream turns={match.turns} busy={match.busy} />
+          {transcript && (
+            <div className="chatroom-toast" role="status">
+              {transcript}
+            </div>
+          )}
+        </section>
+      </div>
 
-      {phase === 'voting' && (
-        <VotePhase
-          seats={seats}
-          disabled={false}
-          onSubmit={handleVoteSubmit}
-        />
-      )}
+      <SlashCommandInput
+        seats={seats}
+        phase={slashPhase}
+        expelUsesRemaining={match.expelUsesRemaining}
+        disabled={match.busy && phase !== 'voting'}
+        onSubmit={handleSlashSubmit}
+      />
 
-      {error && <p className="arena-error">{error}</p>}
+      {helpOpen && <HelpOverlay onClose={() => setHelpOpen(false)} />}
+
+      {error && <p className="chatroom-error">{error}</p>}
     </main>
   );
 }
