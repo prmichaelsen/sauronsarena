@@ -544,7 +544,9 @@ code, kbd { font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace
   border: none;
   color: var(--ink);
   font-family: 'JetBrains Mono', 'SF Mono', monospace;
-  font-size: 0.95rem;
+  /* 16px — fixes small-text complaint AND prevents iOS Safari
+     auto-zoom-on-focus (anything <16px triggers the zoom). */
+  font-size: 16px;
   padding: 0.25rem 0;
   outline: none;
   position: relative;
@@ -561,7 +563,9 @@ code, kbd { font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace
   display: flex;
   align-items: center;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.95rem;
+  /* Must match .slash-input-text exactly — ghost completion
+     overlays the typed text and any size mismatch jumps. */
+  font-size: 16px;
   pointer-events: none;
   padding: 0.25rem 0;
   z-index: 1;
