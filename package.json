@@ -10,7 +10,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "pages:dev": "wrangler pages dev dist --d1=DB",
-    "pages:deploy": "npm run build && wrangler pages deploy dist --project-name saurons-arena"
+    "pages:deploy": "npm run build && wrangler pages deploy dist --project-name saurons-arena",
+    "pages:deploy:scoped": "agent/scripts/deploy.sh"
   },
   "dependencies": {
     "react": "^18.3.1",
